@@ -1,6 +1,6 @@
 {
   "name": "@kagayoi/hatena-blog-mcp",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "description": "Kagayoi-maintained Hatena Blog and Fotolife MCP server for Cloudflare Workers with BYOK.",
   "license": "MIT",
   "author": "Keisuke Nishitani",
