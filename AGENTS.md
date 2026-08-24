@@ -8,6 +8,7 @@
 - TypeScriptはESMとして扱い、内部importの拡張子は既存コードと同じく `.js` を使う。
 - Cloudflare Workers設定は `wrangler.jsonc` を正本とする。bindingsやvarsを変更したら `pnpm types:worker` を実行する。
 - `src/worker-configuration.d.ts` はWrangler生成物である。手編集せず、生成コマンドで更新する。
+- 公開npmパッケージ名は `@kagayoi/hatena-blog-mcp`、公開Workerエントリは `src/index.ts` とする。利用者が自身のWorkerからimportできるモジュール境界を維持する。
 - ツール説明と利用者向けエラーは日本語で書き、コードの命名とコメントは周辺実装の言語・形式に合わせる。
 
 ## 変更時の規約
@@ -18,6 +19,7 @@
 - 入力schemaとHTTP/XML処理には `src/utils/limits.ts` と `src/utils/body.ts` の上限を適用し、上限のない全量読み込みを追加しない。
 - 認証情報、Authorizationヘッダ、上流レスポンス本文、任意の例外メッセージをログへ出さない。構造化エラーは `src/mcp/response.ts` の形式を使う。
 - `ALLOWED_ORIGINS` は `wrangler.jsonc` の `vars` で管理する。一時的な `wrangler --var` だけを正本にしない。
+- `package.json` の `exports`、`types`、`files`、`publishConfig` を変更するときは、公開エントリと配布ファイルを `npm pack --dry-run --json` で確認し、秘密、テスト、エージェント向け文書をtarballへ含めない。
 - 利用者向け機能・設定・制約が変わったら `README.md` と `README.en.md` を同期し、フォーク固有の変更を `CHANGELOG.md` の `Unreleased` へ追記する。
 - 責務、境界、データフロー、設計判断が変わったら `DESIGN.md` を同じ変更で更新する。
 
@@ -25,6 +27,7 @@
 
 - AtomPubクライアントとXMLは `test/atompub/`、Fotolifeは `test/fotolife/`、MCPツールは `test/mcp/`、共通処理は `test/utils/` に置く。
 - CloudflareアダプターのHTTP・CORS・認証・MCP統合契約は `test/adapters/cloudflare.test.ts` で検証する。
+- npm公開エントリのdefault Workerとfactory exportは `test/package.test.ts` で検証する。
 - 実レスポンスに近いXMLは `test/fixtures/` へ置き、秘密値や実APIキーを含めない。
 - coverage閾値は `vitest.config.ts` を正本とする。全体60%以上に加え、`src/atompub/xml.ts` と `src/mcp/tools/entries.ts` の個別閾値を維持する。
 
@@ -42,3 +45,5 @@ pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry-run
 ```
 
 文書だけの変更では、対象Markdownのリンクと内容を確認し、`git diff --check` を実行する。生成型、Wrangler設定、コードへ変更が及ぶ場合は上記の全検証を実行する。
+
+npm公開構成を変更する場合は、上記に加えて `npm publish --dry-run --access public` と、生成tarballを新規一時プロジェクトへinstallした状態でのWrangler dry-runを実行する。実際のpublishとversion更新はリリース依頼時だけ行う。

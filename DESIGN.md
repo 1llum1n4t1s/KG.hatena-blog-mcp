@@ -6,11 +6,12 @@
 
 本システムは、はてなブログAtomPub APIとはてなフォトライフAtom APIを、Cloudflare Workers上のMCP Streamable HTTPサーバーとして公開する。利用者が持ち込むはてなIDとAPIキーをリクエスト単位で中継するBYOK方式であり、認証情報やアプリケーション状態を保存しない。
 
-外部境界は次の3つである。
+外部境界は次の4つである。
 
 - MCPクライアント: `POST /mcp` でJSON-RPCを送信し、Basic Authorizationをリクエストごとに渡す。
 - はてなブログAtomPub API: エントリ、固定ページ、カテゴリを読み書きする。
 - はてなフォトライフAtom API: 画像メタデータの取得と画像投稿を行う。
+- npm利用者: 公開パッケージ `@kagayoi/hatena-blog-mcp` のWorkerモジュールをimportし、利用者自身のWrangler設定からCloudflareへdeployする。
 
 永続ストレージ、KV、D1、Durable Objects、サーバー側セッション、アプリケーションキャッシュは使用しない。
 
@@ -18,6 +19,7 @@
 
 | コンポーネント | 責務 |
 | --- | --- |
+| `src/index.ts` | npmパッケージとWranglerが共有する公開エントリ。default Workerと`createApp`を再exportする |
 | `src/adapters/cloudflare/index.ts` | Honoアプリ、CORS、Origin検証、MCPボディ上限、Basic認証、リクエスト単位のtransport生成 |
 | `src/mcp/server.ts` | 新しい `McpServer` へ13ツールを登録 |
 | `src/mcp/context.ts` | 認証情報、fetch、retry、signal、timeout、request IDをツールへ渡すリクエストスコープ |
@@ -88,9 +90,11 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 - Fotolife投稿はWSSEをリクエストごとに生成し、POSTを再試行しない。認証情報と重複投稿のリスクを抑える一方、一時的なnetwork失敗は利用者が結果を確認して再実行する必要がある。
 - Fotolifeの一覧ツールは提供しない。実装は画像IDが分かる場合の取得と投稿に限定される。
 - Cloudflare環境型をWranglerから生成してcommitする。設定とのずれを `--check` で検出できる一方、生成物が大きくなる。
+- npmではコンパイル済みstdio CLIではなく、TypeScriptのCloudflare Workerモジュールを公開する。利用者ごとにWorker名、CORS、観測設定を所有できる一方、利用にはWrangler互換のbundle環境と利用者側の薄いエントリが必要になる。
+- npm tarballは `package.json` の `files` で実装・型・利用者向け文書へ限定し、リポジトリのlockfileを含めない。利用者は許容version範囲の修正版を取得できる一方、依存解決結果はリポジトリの開発環境と完全には固定されない。
 
 ## 設定と検証境界
 
-`wrangler.jsonc` はcompatibility date、request signal関連flag、`ALLOWED_ORIGINS`、ログ、traceを定義する。`src/worker-configuration.d.ts` はこの設定から生成される。
+`wrangler.jsonc` はcompatibility date、request signal関連flag、`ALLOWED_ORIGINS`、ログ、traceを定義する。`src/worker-configuration.d.ts` はこの設定から生成される。`package.json` は公開名、version、`src/index.ts` のexport、型、tarball内容、public accessを定義する。
 
 自動テストはNode上のVitestで、clients、XML、MCP handlers、Honoアダプターを検証する。Cloudflareへのdeployは行わず、Wranglerのdry-run bundleでWorkerとしてbundle可能なことを確認する。coverage要件と実行コマンドは [AGENTS.md](./AGENTS.md) を参照する。
