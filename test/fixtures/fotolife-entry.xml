@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<entry xmlns="http://purl.org/atom/ns#"
+       xmlns:dc="http://purl.org/dc/elements/1.1/"
+       xmlns:hatena="http://www.hatena.ne.jp/info/xmlns#">
+  <title>Sample image</title>
+  <link rel="alternate" type="text/html" href="https://f.hatena.ne.jp/example_user/20260824010101" />
+  <link rel="service.edit" type="application/x.atom+xml" href="https://f.hatena.ne.jp/atom/edit/20260824010101" />
+  <issued>2026-08-24T01:01:01+09:00</issued>
+  <dc:subject>Hatena Blog</dc:subject>
+  <hatena:imageurl>https://cdn-ak.f.st-hatena.com/images/fotolife/e/example_user/20260824/20260824010101.png</hatena:imageurl>
+  <hatena:imageurlsmall>https://cdn-ak.f.st-hatena.com/images/fotolife/e/example_user/20260824/20260824010101_m.gif</hatena:imageurlsmall>
+  <hatena:syntax>f:id:example_user:20260824010101p:image</hatena:syntax>
+</entry>

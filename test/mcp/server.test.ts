@@ -13,7 +13,7 @@ function makeCtx(): ToolContext {
 }
 
 describe("createServer", () => {
-  it("登録する11ツールがすべて揃っている", () => {
+  it("登録する13ツールがすべて揃っている", () => {
     const server = createServer(makeCtx());
     // McpServer stores registered tools on a private field; reaching into it
     // via the `server` object is brittle, so instead we list them through the
@@ -32,10 +32,12 @@ describe("createServer", () => {
         "delete_entry",
         "delete_page",
         "get_entry",
+        "get_image",
         "get_page",
         "list_categories",
         "list_entries",
         "list_pages",
+        "upload_image",
         "update_entry",
         "update_page",
       ].sort(),

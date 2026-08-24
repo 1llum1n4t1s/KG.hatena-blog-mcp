@@ -75,7 +75,7 @@ describe("AtomPubClient — entries", () => {
       "https://blog.hatena.ne.jp/example_user/example_user.hatenablog.com/atom/entry",
     );
     expect(calls[0]?.method).toBe("GET");
-    expect(calls[0]?.headers["authorization"]).toBe(creds.authHeader);
+    expect(calls[0]?.headers.authorization).toBe(creds.authHeader);
   });
 
   it("appends ?page= when a page token is provided", async () => {

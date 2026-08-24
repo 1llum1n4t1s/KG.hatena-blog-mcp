@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ContentType, Page, PageWritePayload } from "../../atompub/types.js";
+import { MAX_CONTENT_CHARS, MAX_IDENTIFIER_CHARS, MAX_TITLE_CHARS } from "../../utils/limits.js";
 import { makeClient, type ToolContext } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
@@ -66,10 +67,12 @@ export function mergePage(existing: Page, patch: PagePatch): PageWritePayload {
 // Zod shapes
 // ---------------------------------------------------------------------------
 
-const blogId = z.string().min(1).describe("Blog ID, e.g. example.hatenablog.com");
+const identifier = z.string().min(1).max(MAX_IDENTIFIER_CHARS);
+const blogId = identifier.describe("Blog ID, e.g. example.hatenablog.com");
 const hatenaIdOverride = z
   .string()
   .min(1)
+  .max(MAX_IDENTIFIER_CHARS)
   .optional()
   .describe("Override the Hatena ID derived from the Authorization header");
 const contentTypeSchema = z
@@ -101,7 +104,7 @@ export async function listPagesHandler(
       next_page: feed.nextPage,
     });
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "list_pages", requestId: ctx.requestId });
   }
 }
 
@@ -118,7 +121,7 @@ export async function getPageHandler(args: GetPageArgs, ctx: ToolContext): Promi
     const page = await client.getPage(args.page_id);
     return ok(pageView(page, args.include_html ?? false));
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "get_page", requestId: ctx.requestId });
   }
 }
 
@@ -152,7 +155,7 @@ export async function createPageHandler(
     const page = await client.createPage(payload);
     return ok(pageView(page, false));
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "create_page", requestId: ctx.requestId });
   }
 }
 
@@ -166,6 +169,7 @@ interface UpdatePageArgs {
   preview?: boolean | undefined;
   custom_url?: string | undefined;
   touch_updated?: boolean | undefined;
+  expected_edited?: string | undefined;
 }
 
 export async function updatePageHandler(
@@ -175,6 +179,12 @@ export async function updatePageHandler(
   try {
     const client = makeClient(ctx, args.blog_id, args.hatena_id);
     const existing = await client.getPage(args.page_id);
+    if (args.expected_edited !== undefined && existing.edited !== args.expected_edited) {
+      return toolError(
+        new Error("更新競合を検出しました。get_page で最新状態を取得してから再試行してください。"),
+        { operation: "update_page", requestId: ctx.requestId },
+      );
+    }
     const patch: PagePatch = {};
     if (args.title !== undefined) patch.title = args.title;
     if (args.content !== undefined) patch.content = args.content;
@@ -186,7 +196,7 @@ export async function updatePageHandler(
     const updated = await client.updatePage(args.page_id, payload);
     return ok(pageView(updated, false));
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "update_page", requestId: ctx.requestId });
   }
 }
 
@@ -205,7 +215,7 @@ export async function deletePageHandler(
     await client.deletePage(args.page_id);
     return ok({ ok: true });
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "delete_page", requestId: ctx.requestId });
   }
 }
 
@@ -222,7 +232,11 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        page: z.string().optional().describe("next_page token from a previous response"),
+        page: z
+          .string()
+          .max(MAX_IDENTIFIER_CHARS)
+          .optional()
+          .describe("next_page token from a previous response"),
         include_html: z.boolean().optional(),
       },
       annotations: { readOnlyHint: true },
@@ -237,7 +251,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        page_id: z.string().min(1),
+        page_id: identifier,
         include_html: z.boolean().optional(),
       },
       annotations: { readOnlyHint: true },
@@ -252,12 +266,16 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        title: z.string().min(1),
-        content: z.string(),
+        title: z.string().min(1).max(MAX_TITLE_CHARS),
+        content: z.string().max(MAX_CONTENT_CHARS),
         content_type: contentTypeSchema.optional(),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
-        custom_url: z.string().min(1).describe("ページのスラッグ (例: about)"),
+        custom_url: z
+          .string()
+          .min(1)
+          .max(MAX_IDENTIFIER_CHARS)
+          .describe("ページのスラッグ (例: about)"),
       },
     },
     (args) => createPageHandler(args, ctx),
@@ -271,18 +289,23 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        page_id: z.string().min(1),
-        title: z.string().optional(),
-        content: z.string().optional(),
+        page_id: identifier,
+        title: z.string().max(MAX_TITLE_CHARS).optional(),
+        content: z.string().max(MAX_CONTENT_CHARS).optional(),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
-        custom_url: z.string().optional(),
+        custom_url: z.string().max(MAX_IDENTIFIER_CHARS).optional(),
         touch_updated: z
           .boolean()
           .optional()
           .describe("true を指定した場合のみ現在時刻で updated を送信します (デフォルト false)"),
+        expected_edited: z
+          .string()
+          .max(MAX_IDENTIFIER_CHARS)
+          .optional()
+          .describe("get_page が返した edited。現在値と異なる場合は更新せず競合エラーにします"),
       },
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { destructiveHint: true },
     },
     (args) => updatePageHandler(args, ctx),
   );
@@ -294,7 +317,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        page_id: z.string().min(1),
+        page_id: identifier,
       },
       annotations: { destructiveHint: true, idempotentHint: true },
     },

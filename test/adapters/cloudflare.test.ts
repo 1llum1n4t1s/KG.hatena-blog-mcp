@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/adapters/cloudflare/index.js";
+import { MAX_MCP_REQUEST_BYTES } from "../../src/utils/limits.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = resolve(here, "../fixtures");
@@ -93,6 +94,19 @@ describe("cloudflare adapter — CORS", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("https://claude.ai");
   });
 
+  it("configured allowlist rejects a disallowed Origin before auth handling", async () => {
+    const res = await app.request(
+      "/mcp",
+      {
+        method: "OPTIONS",
+        headers: { Origin: "https://evil.example" },
+      },
+      { ALLOWED_ORIGINS: "https://claude.ai,https://chatgpt.com" },
+    );
+    expect(res.status).toBe(403);
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
   it("non-preflight responses also carry the CORS header", async () => {
     const res = await app.request("/");
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
@@ -118,6 +132,7 @@ describe("cloudflare adapter — auth", () => {
   });
 
   it("non-Basic scheme → 401", async () => {
+    const log = vi.spyOn(console, "log");
     const res = await app.request("/mcp", {
       method: "POST",
       headers: {
@@ -128,6 +143,22 @@ describe("cloudflare adapter — auth", () => {
       body: jsonRpc("tools/list", {}),
     });
     expect(res.status).toBe(401);
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("rejects an oversized MCP request from Content-Length before parsing auth", async () => {
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": String(MAX_MCP_REQUEST_BYTES + 1),
+      },
+      body: "{}",
+    });
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("too large");
   });
 });
 
@@ -161,7 +192,7 @@ describe("cloudflare adapter — MCP protocol", () => {
     return { tools: listBody.result.tools.map((t) => t.name) };
   }
 
-  it("initialize + tools/list exposes all 11 tools", async () => {
+  it("initialize + tools/list exposes all 13 tools", async () => {
     const { tools } = await initializeAndListTools();
     expect(tools.sort()).toEqual(
       [
@@ -170,10 +201,12 @@ describe("cloudflare adapter — MCP protocol", () => {
         "delete_entry",
         "delete_page",
         "get_entry",
+        "get_image",
         "get_page",
         "list_categories",
         "list_entries",
         "list_pages",
+        "upload_image",
         "update_entry",
         "update_page",
       ].sort(),
@@ -201,6 +234,70 @@ describe("cloudflare adapter — MCP protocol", () => {
           result: { structuredContent?: { entries?: unknown[] } };
         };
         expect(body.result.structuredContent?.entries).toBeDefined();
+      },
+    );
+  });
+
+  it("dispatches the remaining entry tool callbacks through MCP", async () => {
+    await withStubbedFetch(
+      [
+        new Response(readFixture("entry-single.xml"), { status: 200 }),
+        new Response(readFixture("entry-single.xml"), { status: 201 }),
+        new Response(readFixture("entry-single.xml"), { status: 200 }),
+        new Response(readFixture("entry-single.xml"), { status: 200 }),
+        new Response(null, { status: 204 }),
+      ],
+      async () => {
+        const getResponse = await mcpCall(
+          app,
+          jsonRpc("tools/call", {
+            name: "get_entry",
+            arguments: {
+              blog_id: "example_user.hatenablog.com",
+              entry_id: "3000000000000000010",
+            },
+          }),
+        );
+        expect(getResponse.status).toBe(200);
+
+        const createResponse = await mcpCall(
+          app,
+          jsonRpc("tools/call", {
+            name: "create_entry",
+            arguments: {
+              blog_id: "example_user.hatenablog.com",
+              title: "new",
+              content: "body",
+            },
+          }),
+        );
+        expect(createResponse.status).toBe(200);
+
+        const updateResponse = await mcpCall(
+          app,
+          jsonRpc("tools/call", {
+            name: "update_entry",
+            arguments: {
+              blog_id: "example_user.hatenablog.com",
+              entry_id: "3000000000000000010",
+              title: "updated",
+              expected_edited: "2026-04-18T10:15:00+09:00",
+            },
+          }),
+        );
+        expect(updateResponse.status).toBe(200);
+
+        const deleteResponse = await mcpCall(
+          app,
+          jsonRpc("tools/call", {
+            name: "delete_entry",
+            arguments: {
+              blog_id: "example_user.hatenablog.com",
+              entry_id: "3000000000000000010",
+            },
+          }),
+        );
+        expect(deleteResponse.status).toBe(200);
       },
     );
   });

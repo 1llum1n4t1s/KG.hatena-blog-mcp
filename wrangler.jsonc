@@ -2,10 +2,23 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hatena-blog-mcp",
   "main": "src/adapters/cloudflare/index.ts",
-  "compatibility_date": "2026-01-01",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal", "request_signal_passthrough"],
+  "vars": {
+    // Empty keeps the existing wildcard CORS behaviour. Set a comma-separated
+    // allowlist here for browser clients; disallowed explicit Origins get 403.
+    "ALLOWED_ORIGINS": ""
+  },
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
+    }
   }
   // No secrets / no KV / no DO — this server is intentionally stateless (BYOK).
   // Clients pass credentials via the Authorization header on each request.

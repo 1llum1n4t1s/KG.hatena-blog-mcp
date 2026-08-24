@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolContext } from "./context.js";
 import { registerCategoryTools } from "./tools/categories.js";
 import { registerEntryTools } from "./tools/entries.js";
+import { registerImageTools } from "./tools/images.js";
 import { registerPageTools } from "./tools/pages.js";
 
 /**
@@ -32,5 +33,6 @@ export function createServer(ctx: ToolContext): McpServer {
   registerEntryTools(server, ctx);
   registerPageTools(server, ctx);
   registerCategoryTools(server, ctx);
+  registerImageTools(server, ctx);
   return server;
 }

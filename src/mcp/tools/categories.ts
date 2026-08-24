@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { MAX_IDENTIFIER_CHARS } from "../../utils/limits.js";
 import { makeClient, type ToolContext } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
@@ -17,7 +18,7 @@ export async function listCategoriesHandler(
     const doc = await client.listCategories();
     return ok({ categories: doc.categories, fixed: doc.fixed });
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "list_categories", requestId: ctx.requestId });
   }
 }
 
@@ -28,10 +29,15 @@ export function registerCategoryTools(server: McpServer, ctx: ToolContext): void
       description:
         "ブログのカテゴリ一覧を取得します。fixed=true の場合は新規カテゴリの追加が禁止されています。",
       inputSchema: {
-        blog_id: z.string().min(1).describe("Blog ID, e.g. example.hatenablog.com"),
+        blog_id: z
+          .string()
+          .min(1)
+          .max(MAX_IDENTIFIER_CHARS)
+          .describe("Blog ID, e.g. example.hatenablog.com"),
         hatena_id: z
           .string()
           .min(1)
+          .max(MAX_IDENTIFIER_CHARS)
           .optional()
           .describe("Override the Hatena ID derived from the Authorization header"),
       },

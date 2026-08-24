@@ -210,4 +210,53 @@ describe("fetchWithRetry", () => {
     );
     expect(rec.waits).toEqual([42]);
   });
+
+  it("never retries non-idempotent POST requests", async () => {
+    const rec: Recorder = { calls: 0, waits: [] };
+    const fetchImpl = async (): Promise<Response> => {
+      rec.calls += 1;
+      return makeResponse(503);
+    };
+    const response = await fetchWithRetry(
+      "https://x",
+      { method: "POST" },
+      { ...makeDeps(rec), fetchImpl },
+    );
+    expect(response.status).toBe(503);
+    expect(rec.calls).toBe(1);
+    expect(rec.waits).toEqual([]);
+  });
+
+  it("continues to retry idempotent PUT requests", async () => {
+    const rec: Recorder = { calls: 0, waits: [] };
+    const fetchImpl = async (): Promise<Response> => {
+      rec.calls += 1;
+      return rec.calls === 1 ? makeResponse(503) : makeResponse(200);
+    };
+    const response = await fetchWithRetry(
+      "https://x",
+      { method: "PUT" },
+      { ...makeDeps(rec), fetchImpl },
+    );
+    expect(response.status).toBe(200);
+    expect(rec.calls).toBe(2);
+  });
+
+  it("passes the request signal to the retry sleep", async () => {
+    const controller = new AbortController();
+    let receivedSignal: AbortSignal | null | undefined;
+    await fetchWithRetry(
+      "https://x",
+      { signal: controller.signal },
+      {
+        fetchImpl: async () => makeResponse(503),
+        maxRetries: 1,
+        random: () => 0.5,
+        sleep: async (_ms, signal) => {
+          receivedSignal = signal;
+        },
+      },
+    );
+    expect(receivedSignal).toBe(controller.signal);
+  });
 });

@@ -31,7 +31,7 @@ export function parseBasicAuth(headerValue: string | null | undefined): BasicCre
   if (!headerValue) throw new MissingCredentialsError();
   const trimmed = headerValue.trim();
   const match = /^Basic\s+(.+)$/i.exec(trimmed);
-  if (!match || !match[1]) throw new MissingCredentialsError();
+  if (!match?.[1]) throw new MissingCredentialsError();
   const b64 = match[1].trim();
   let decoded: string;
   try {

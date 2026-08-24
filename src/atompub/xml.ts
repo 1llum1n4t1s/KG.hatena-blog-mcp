@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { assertValidXmlChars } from "../utils/xml.js";
 import { AtomPubError } from "./errors.js";
 import type {
   CategoryDocument,
@@ -24,8 +25,10 @@ const parser = new XMLParser({
   parseAttributeValue: false,
   trimValues: false,
   processEntities: true,
+  htmlEntities: true,
+  removeNSPrefix: true,
   textNodeName: "#text",
-  isArray: (name) => ARRAY_TAGS.has(name),
+  isArray: (name) => ARRAY_TAGS.has(name.split(":").at(-1) ?? name),
 });
 
 type XmlNode = Record<string, unknown>;
@@ -50,6 +53,32 @@ function asObject(value: unknown): XmlNode {
   return value as XmlNode;
 }
 
+function parseError(message: string): never {
+  throw new AtomPubError(message, { status: 0, code: "parse_error" });
+}
+
+function requiredObject(node: XmlNode, key: string, label: string): XmlNode {
+  const value = node[key];
+  if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
+    return parseError(`AtomPub response is missing required ${label}`);
+  }
+  return value as XmlNode;
+}
+
+function requiredText(
+  node: XmlNode,
+  key: string,
+  label: string,
+  options: { nonEmpty?: boolean } = {},
+): string {
+  if (!Object.hasOwn(node, key)) return parseError(`AtomPub response is missing required ${label}`);
+  const value = asString(node[key]);
+  if (value === undefined || (options.nonEmpty === true && value.length === 0)) {
+    return parseError(`AtomPub response has invalid required ${label}`);
+  }
+  return value;
+}
+
 function asString(value: unknown): string | undefined {
   // The parser is configured with parseTagValue/parseAttributeValue:false, so
   // every value we see is either a string, a nested object, or undefined.
@@ -61,8 +90,12 @@ function asString(value: unknown): string | undefined {
   return undefined;
 }
 
-function asBool(value: unknown): boolean {
-  return asString(value)?.toLowerCase() === "yes";
+function asBool(value: unknown, label: string): boolean {
+  if (value === undefined) return false;
+  const text = asString(value)?.toLowerCase();
+  if (text === "yes") return true;
+  if (text === "no") return false;
+  return parseError(`AtomPub response has invalid ${label}`);
 }
 
 function asArray<T>(value: T | T[] | undefined): T[] {
@@ -78,7 +111,7 @@ function extractLinks(entry: XmlNode): {
   editUrl: string | undefined;
   publicUrl: string | undefined;
 } {
-  const links = asArray(entry["link"] as XmlNode | XmlNode[] | undefined);
+  const links = asArray(entry.link as XmlNode | XmlNode[] | undefined);
   let editUrl: string | undefined;
   let publicUrl: string | undefined;
   for (const link of links) {
@@ -103,16 +136,17 @@ function extractControl(entry: XmlNode): {
   preview: boolean;
   scheduled: boolean;
 } {
-  const control = asObject(entry["app:control"]);
+  const control = requiredObject(entry, "control", "app:control");
+  requiredText(control, "draft", "app:draft");
   return {
-    draft: asBool(control["app:draft"]),
-    preview: asBool(control["app:preview"]),
-    scheduled: asBool(control["hatenablog:scheduled"]),
+    draft: asBool(control.draft, "app:draft"),
+    preview: asBool(control.preview, "app:preview"),
+    scheduled: asBool(control.scheduled, "hatenablog:scheduled"),
   };
 }
 
 function extractCategories(entry: XmlNode): string[] {
-  const cats = asArray(entry["category"] as XmlNode | XmlNode[] | undefined);
+  const cats = asArray(entry.category as XmlNode | XmlNode[] | undefined);
   const terms: string[] = [];
   for (const c of cats) {
     const term = c["@_term"];
@@ -125,7 +159,7 @@ function extractContentBody(entry: XmlNode): {
   content: string;
   contentType: ContentType | undefined;
 } {
-  const node = entry["content"];
+  const node = entry.content;
   if (typeof node === "string") {
     return { content: node, contentType: undefined };
   }
@@ -139,7 +173,7 @@ function extractContentBody(entry: XmlNode): {
 }
 
 function extractFormattedContent(entry: XmlNode): string | undefined {
-  const node = entry["hatena:formatted-content"];
+  const node = entry["formatted-content"];
   if (node === undefined) return undefined;
   if (typeof node === "string") return node;
   return asString(node);
@@ -157,23 +191,29 @@ function toEntry(entryNode: XmlNode): Entry {
   const { content, contentType } = extractContentBody(entryNode);
   const formatted = extractFormattedContent(entryNode);
 
-  const authorName = asString(asObject(entryNode["author"])["name"]) ?? "";
-  const customUrl = asString(entryNode["hatenablog:custom-url"]);
-  const edited = asString(entryNode["app:edited"]);
+  const atomId = requiredText(entryNode, "id", "id", { nonEmpty: true });
+  const title = requiredText(entryNode, "title", "title");
+  requiredText(entryNode, "content", "content");
+  const updated = requiredText(entryNode, "updated", "updated", { nonEmpty: true });
+  const control = extractControl(entryNode);
+
+  const authorName = asString(asObject(entryNode.author).name) ?? "";
+  const customUrl = asString(entryNode["custom-url"]);
+  const edited = asString(entryNode.edited);
 
   return {
     id,
-    atomId: asString(entryNode["id"]) ?? "",
-    title: asString(entryNode["title"]) ?? "",
+    atomId,
+    title,
     authorName,
     content,
     contentType,
     ...(formatted !== undefined ? { formattedContent: formatted } : {}),
     categories: extractCategories(entryNode),
-    control: extractControl(entryNode),
-    updated: asString(entryNode["updated"]) ?? "",
-    ...(asString(entryNode["published"]) !== undefined
-      ? { published: asString(entryNode["published"]) as string }
+    control,
+    updated,
+    ...(asString(entryNode.published) !== undefined
+      ? { published: asString(entryNode.published) as string }
       : {}),
     ...(edited !== undefined ? { edited } : {}),
     ...(publicUrl !== undefined ? { url: publicUrl } : {}),
@@ -206,7 +246,7 @@ function toPage(pageNode: XmlNode): Page {
 }
 
 function extractNextPageToken(feed: XmlNode): string | null {
-  const links = asArray(feed["link"] as XmlNode | XmlNode[] | undefined);
+  const links = asArray(feed.link as XmlNode | XmlNode[] | undefined);
   for (const link of links) {
     if (link["@_rel"] !== "next") continue;
     const href = link["@_href"];
@@ -225,7 +265,7 @@ function extractNextPageToken(feed: XmlNode): string | null {
 function unwrapRootEntry(doc: XmlNode, kind: "entry" | "page"): XmlNode {
   // `isArray` forces <entry> into an array even at the document root, so
   // unwrap the first element for member documents.
-  const raw = doc["entry"];
+  const raw = doc.entry;
   const entry = Array.isArray(raw) ? raw[0] : raw;
   if (!entry || typeof entry !== "object") {
     throw new AtomPubError(`Expected <entry> root element for ${kind}`, {
@@ -246,29 +286,29 @@ export function parsePage(xml: string): Page {
 
 export function parseFeed(xml: string): EntryList {
   const doc = parse(xml);
-  const feed = asObject(doc["feed"]);
-  const entries = asArray(feed["entry"] as XmlNode | XmlNode[] | undefined).map(toEntry);
+  const feed = requiredObject(doc, "feed", "feed root element");
+  const entries = asArray(feed.entry as XmlNode | XmlNode[] | undefined).map(toEntry);
   return { entries, nextPage: extractNextPageToken(feed) };
 }
 
 export function parsePageFeed(xml: string): PageList {
   const doc = parse(xml);
-  const feed = asObject(doc["feed"]);
-  const pages = asArray(feed["entry"] as XmlNode | XmlNode[] | undefined).map(toPage);
+  const feed = requiredObject(doc, "feed", "feed root element");
+  const pages = asArray(feed.entry as XmlNode | XmlNode[] | undefined).map(toPage);
   return { pages, nextPage: extractNextPageToken(feed) };
 }
 
 export function parseCategories(xml: string): CategoryDocument {
   const doc = parse(xml);
-  const cats = asObject(doc["app:categories"]);
-  const items = asArray(cats["category"] as XmlNode | XmlNode[] | undefined);
+  const cats = requiredObject(doc, "categories", "app:categories root element");
+  const items = asArray(cats.category as XmlNode | XmlNode[] | undefined);
   const categories: string[] = [];
   for (const c of items) {
     const term = c["@_term"];
     if (typeof term === "string") categories.push(term);
   }
   const fixedAttr = asString(cats["@_fixed"]);
-  return { categories, fixed: fixedAttr === "yes" };
+  return { categories, fixed: asBool(fixedAttr, "app:categories fixed attribute") };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +320,7 @@ const XML_DECL = '<?xml version="1.0" encoding="utf-8"?>';
 // RFC 5023 §4.1: atom/app text content uses XML 1.0 escaping. & < > must be
 // escaped everywhere; " and ' must be escaped inside attribute values.
 function escapeXmlText(s: string): string {
+  assertValidXmlChars(s);
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 

@@ -202,11 +202,11 @@ describe("buildEntryXml", () => {
     );
     // parseEntry requires an edit link to derive an id. Inject one so we can
     // round-trip purely at the XML layer.
-    const withLink = xml.replace(
-      "<entry ",
-      '<entry xmlns:stub="x"><link rel="edit" href="https://example/atom/entry/99" />',
+    const responseXml = xml.replace(
+      "  <title>",
+      '  <id>tag:example,2026:99</id>\n  <link rel="edit" href="https://example/atom/entry/99" />\n  <title>',
     );
-    const parsed = parseEntry(withLink);
+    const parsed = parseEntry(responseXml);
     expect(parsed.title).toBe("新しい記事");
     expect(parsed.content).toBe("# 見出し\n\n本文");
     expect(parsed.contentType).toBe("text/x-markdown");
@@ -292,24 +292,27 @@ describe("parse error handling", () => {
     expect(parseCategories(xml).fixed).toBe(true);
   });
 
-  it("parses an entry with no <app:control> block (defaults to all-false)", () => {
+  it("rejects an entry with no required <app:control> block", () => {
     const xml = `<?xml version="1.0"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
+  <id>tag:example,2026:42</id>
   <link rel="edit" href="https://example/atom/entry/42"/>
   <title>no control</title>
   <updated>2026-01-01T00:00:00+09:00</updated>
+  <content>body</content>
 </entry>`;
-    const entry = parseEntry(xml);
-    expect(entry.control).toEqual({ draft: false, preview: false, scheduled: false });
+    expect(() => parseEntry(xml)).toThrow(/app:control/);
   });
 
   it("parses <content> without a type attribute as a plain string body", () => {
     const xml = `<?xml version="1.0"?>
 <entry xmlns="http://www.w3.org/2005/Atom">
+  <id>tag:example,2026:42</id>
   <link rel="edit" href="https://example/atom/entry/42"/>
   <title>untyped content</title>
   <updated>2026-01-01T00:00:00+09:00</updated>
   <content>plain body</content>
+  <app:control xmlns:app="http://www.w3.org/2007/app"><app:draft>no</app:draft></app:control>
 </entry>`;
     const entry = parseEntry(xml);
     expect(entry.content).toBe("plain body");
@@ -322,6 +325,71 @@ describe("parse error handling", () => {
   <link rel="next" href="https://example/atom/entry"/>
 </feed>`;
     expect(parseFeed(xml).nextPage).toBeNull();
+  });
+
+  it("rejects documents with the wrong feed or categories root", () => {
+    expect(() => parseFeed("<entry/>")).toThrow(/feed root/);
+    expect(() => parseCategories("<feed/>")).toThrow(/categories root/);
+  });
+
+  it("accepts arbitrary namespace prefixes", () => {
+    const xml = readFixture("entry-single.xml")
+      .replaceAll("xmlns:app", "xmlns:x")
+      .replaceAll("app:", "x:")
+      .replaceAll("xmlns:hatenablog", "xmlns:y")
+      .replaceAll("hatenablog:", "y:")
+      .replaceAll("xmlns:hatena", "xmlns:z")
+      .replaceAll("hatena:", "z:");
+    const entry = parseEntry(xml);
+    expect(entry.id).toBe("3000000000000000010");
+    expect(entry.control.draft).toBe(false);
+    expect(entry.formattedContent).toContain("<h2>はじめに</h2>");
+  });
+
+  it("decodes decimal and hexadecimal numeric character references", () => {
+    const xml = `<?xml version="1.0"?>
+<entry xmlns="http://www.w3.org/2005/Atom" xmlns:a="http://www.w3.org/2007/app">
+  <id>tag:example,2026:42</id>
+  <link rel="edit" href="https://example/atom/entry/42"/>
+  <title>numeric references</title>
+  <updated>2026-01-01T00:00:00+09:00</updated>
+  <content>A&#39;B&#x41;&#10;C</content>
+  <a:control><a:draft>no</a:draft></a:control>
+</entry>`;
+    expect(parseEntry(xml).content).toBe("A'BA\nC");
+  });
+
+  it("rejects missing required entry fields instead of returning empty defaults", () => {
+    const xml = `<?xml version="1.0"?>
+<entry xmlns="http://www.w3.org/2005/Atom" xmlns:app="http://www.w3.org/2007/app">
+  <id>tag:example,2026:42</id>
+  <link rel="edit" href="https://example/atom/entry/42"/>
+  <updated>2026-01-01T00:00:00+09:00</updated>
+  <content>body</content>
+  <app:control><app:draft>no</app:draft></app:control>
+</entry>`;
+    expect(() => parseEntry(xml)).toThrow(/title/);
+  });
+
+  it("rejects a required text field that contains no text value", () => {
+    const xml = `<?xml version="1.0"?>
+<entry xmlns="http://www.w3.org/2005/Atom" xmlns:app="http://www.w3.org/2007/app">
+  <id>tag:example,2026:42</id>
+  <link rel="edit" href="https://example/atom/entry/42"/>
+  <title><span>nested only</span></title>
+  <updated>2026-01-01T00:00:00+09:00</updated>
+  <content>body</content>
+  <app:control><app:draft>no</app:draft></app:control>
+</entry>`;
+    expect(() => parseEntry(xml)).toThrow(/invalid required title/);
+  });
+
+  it("rejects invalid yes/no control values", () => {
+    const xml = readFixture("entry-single.xml").replace(
+      "<app:draft>no</app:draft>",
+      "<app:draft>maybe</app:draft>",
+    );
+    expect(() => parseEntry(xml)).toThrow(/invalid app:draft/);
   });
 });
 
@@ -340,5 +408,20 @@ describe("buildPageXml", () => {
     expect(xml).not.toContain("<category ");
     expect(xml).not.toContain("<hatenablog:scheduled>");
     expect(xml).toContain("<hatenablog:custom-url>about</hatenablog:custom-url>");
+  });
+
+  it("rejects characters forbidden by XML 1.0", () => {
+    expect(() => buildPageXml({ title: "bad\u0000title" })).toThrow(/XML 1.0/);
+  });
+
+  it("projects optional author and updated fields into page XML", () => {
+    const xml = buildPageXml({
+      authorName: "example_user",
+      updated: "2026-08-24T22:00:00+09:00",
+      control: { draft: true },
+    });
+    expect(xml).toContain("<author><name>example_user</name></author>");
+    expect(xml).toContain("<updated>2026-08-24T22:00:00+09:00</updated>");
+    expect(xml).toContain("<app:draft>yes</app:draft>");
   });
 });

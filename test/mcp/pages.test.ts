@@ -165,6 +165,22 @@ describe("updatePageHandler", () => {
     expect(body).not.toContain("custom-url");
     expect(body).not.toContain("<hatenablog:scheduled>");
   });
+
+  it("expected_edited が現在値と異なる場合はPUTしない", async () => {
+    const { ctx, calls } = makeCtx([new Response(readFixture("page-single.xml"), { status: 200 })]);
+    const res = await updatePageHandler(
+      {
+        blog_id: "example_user.hatenablog.com",
+        page_id: "8000000000000000001",
+        title: "競合する変更",
+        expected_edited: "2026-02-01T08:00:00+09:00",
+      },
+      ctx,
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toContain("更新競合");
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe("deletePageHandler", () => {

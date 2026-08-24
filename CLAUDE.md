@@ -52,7 +52,7 @@
 | XMLパース | `fast-xml-parser` |
 | ランタイム | Cloudflare Workers（第一）、任意のNode/Denoサーバー |
 | トランスポート | MCP Streamable HTTP のみ（SSE・stdioは対応しない） |
-| ビルド | Wrangler + tsc |
+| ビルド | `tsc --noEmit` + Wrangler bundle / dry-run |
 | テスト | Vitest |
 | パッケージマネージャ | pnpm |
 | Linter/Formatter | Biome |
@@ -97,18 +97,22 @@ hatena-blog-mcp/
 │  │  ├─ xml.ts          # AtomPub XML ⇄ JS 変換
 │  │  ├─ types.ts        # Entry, Page, Category 等
 │  │  └─ errors.ts       # AtomPubError
+│  ├─ fotolife/           # WSSE + Fotolife Atom API
 │  ├─ mcp/
 │  │  ├─ server.ts       # MCP Server 生成（ツール登録）
 │  │  └─ tools/
 │  │     ├─ entries.ts
 │  │     ├─ pages.ts
-│  │     └─ categories.ts
+│  │     ├─ categories.ts
+│  │     └─ images.ts
 │  ├─ adapters/
 │  │  └─ cloudflare/
 │  │     └─ index.ts     # Workers エントリ（Hono + Streamable HTTP）
 │  └─ utils/
 │     ├─ auth.ts         # Authorizationヘッダ処理
-│     └─ retry.ts        # 指数バックオフ+jitter
+│     ├─ body.ts         # リクエスト/レスポンス上限
+│     └─ retry.ts        # 冪等メソッド限定の指数バックオフ+jitter
+├─ src/worker-configuration.d.ts # wrangler types の生成物
 ├─ test/
 │  ├─ fixtures/          # 実AtomPubレスポンスのサンプルXML
 │  ├─ atompub/
@@ -191,14 +195,14 @@ Authorization: Basic <base64(hatena_id:api_key)>
 
 -----
 
-## 7. ツール仕様（全11）
+## 7. ツール仕様（全13）
 
 ### Entries（5）
 
 1. **`list_entries`** (readOnly): `blog_id`, `hatena_id?`, `page?`, `include_html?` → `{ entries, next_page }`
 2. **`get_entry`** (readOnly): `blog_id`, `hatena_id?`, `entry_id`, `include_html?` → `Entry`
-3. **`create_entry`**: `blog_id`, `hatena_id?`, `title`, `content`, `content_type?`, `categories?`, `draft?`, `preview?`, `scheduled?`, `updated?`, `custom_url?` → `Entry`
-4. **`update_entry`** (destructive, idempotent): **部分更新**。既存エントリをGET→マージ→PUT。未指定は既存値維持。`content_type`は必ず既存維持。`touch_updated` (default false) でのみ `updated` を送る
+3. **`create_entry`**: `blog_id`, `hatena_id?`, `title`, `content`, `content_type?`, `categories?`, `draft?`, `preview?`, `scheduled?`, `updated?`, `custom_url?` → `Entry`。`scheduled=true` は `draft=true` と `updated` が必須
+4. **`update_entry`** (destructive): **部分更新**。既存エントリをGET→マージ→PUT。未指定は既存値維持。`content_type`は必ず既存維持。`touch_updated` (default false) でのみ `updated` を送る。`expected_edited?` で取得済み版との競合を検出
 5. **`delete_entry`** (destructive, idempotent): `blog_id`, `hatena_id?`, `entry_id` → `{ ok: true }`
 
 ### Pages（5） — Entriesと同様。差分:
@@ -211,13 +215,18 @@ Authorization: Basic <base64(hatena_id:api_key)>
 
 - **`list_categories`** (readOnly): `blog_id`, `hatena_id?` → `{ categories: string[], fixed: boolean }`
 
+### Images（2）
+
+- **`get_image`** (readOnly): `image_id` → Fotolife画像メタデータ
+- **`upload_image`**: `title`, `content_type`, `data_base64`, `folder?` → 記事用 `blog_syntax` と画像URL
+
 -----
 
 ## 8. 実装上の重要制約
 
 ### XML処理
 
-- `fast-xml-parser` 使用、名前空間を保持、属性キーは `@_` プレフィックス
+- `fast-xml-parser` 使用、タグは名前空間prefixを除いたlocal nameで扱い、属性キーは `@_` プレフィックス
 - `hatena:formatted-content` の二重エスケープに注意
 - パーサー設定:
 
@@ -229,13 +238,18 @@ new XMLParser({
   parseAttributeValue: false,
   trimValues: false,
   processEntities: true,
+  htmlEntities: true,
+  removeNSPrefix: true,
 });
 ```
 
 ### 部分更新（update_entry / update_page）
 
 ```typescript
-const existing = await client.getEntry(blog_id, entry_id);
+const existing = await client.getEntry(entry_id);
+if (params.expected_edited && params.expected_edited !== existing.edited) {
+  throw new Error("更新競合");
+}
 const merged = {
   title: params.title ?? existing.title,
   content: params.content ?? existing.content,
@@ -243,7 +257,7 @@ const merged = {
   categories: params.categories ?? existing.categories,
   draft: params.draft ?? existing.draft,
   preview: params.preview ?? existing.preview,
-  custom_url: params.custom_url ?? existing.custom_url,
+  ...(params.custom_url !== undefined ? { custom_url: params.custom_url } : {}),
   updated: params.touch_updated ? new Date().toISOString() : undefined,
 };
 ```
@@ -251,6 +265,7 @@ const merged = {
 ### リトライ（retry.ts）
 
 - `429`, `502`, `503`, `504` で指数バックオフ + jitter
+- GET / PUT / DELETE など冪等メソッドだけを再試行し、POST は重複作成を避けるため再試行しない
 - `Retry-After` ヘッダ尊重
 - 最大3回、ベース1000ms、係数2、jitter ±25%
 
@@ -263,18 +278,19 @@ const merged = {
 
 ### エラー扱い
 
-- `AtomPubError` にHTTPステータスとボディ短縮を保持
+- `AtomPubError` にHTTPステータスと上限付きボディを保持
 - MCPレスポンスには日本語ユーザーメッセージ。スタックトレース含めない
+- ログは操作名・request ID・status・category・error type のみ。認証情報、本文、エラーメッセージは出さない
 
 -----
 
 ## 9. テスト方針
 
 - Vitest
-- `xml.ts` と `update_entry` の部分更新ロジックは**カバレッジ90%以上**
+- `xml.ts` と `entries.ts` は**行・関数・文90%以上**（`entries.ts` のbranchは75%以上）
 - 全体60%以上
 - `update_entry` は「カテゴリだけ変更、他は維持」のテストを必ず含める
-- E2E: `wrangler dev` + MCP Inspector
+- 手動E2E: `wrangler dev` + MCP Inspector
 
 -----
 
@@ -315,13 +331,13 @@ pnpm init、TypeScript、wrangler.jsonc、Biome、Vitest、.gitignore、LICENSE�
 
 ## 11. 完了基準（DoD）
 
-- [ ] 全11ツールが MCP Inspector から呼び出せる
+- [ ] 全13ツールが MCP Inspector から呼び出せる
 - [ ] 実ブログで **エントリの部分更新（カテゴリのみ）** が動作し、**タイトル・本文・記法・投稿日時が変わらない**
 - [ ] 認証エラーで適切なメッセージ
 - [ ] 存在しない entry_id で 404 相当
 - [ ] `wrangler deploy` が通り workers.dev で動く
 - [ ] READMEにセットアップ＋BYOKの説明
-- [ ] テストカバレッジ 60%以上（`xml.ts`, `update_entry` は 90%以上）
+- [ ] テストカバレッジ 60%以上（`xml.ts`, `entries.ts` は行・関数・文90%以上）
 - [ ] セキュリティ注意事項がREADMEにある
 
 -----

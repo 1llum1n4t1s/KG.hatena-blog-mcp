@@ -2,6 +2,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { AtomPubClient } from "../../atompub/client.js";
 import type { ContentType, Entry, EntryWritePayload } from "../../atompub/types.js";
+import {
+  MAX_CATEGORY_CHARS,
+  MAX_CATEGORY_COUNT,
+  MAX_CONTENT_CHARS,
+  MAX_IDENTIFIER_CHARS,
+  MAX_TITLE_CHARS,
+} from "../../utils/limits.js";
 import { makeClient, type ToolContext } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
@@ -88,10 +95,12 @@ export function mergeEntry(existing: Entry, patch: EntryPatch): EntryWritePayloa
 // Zod shapes (shared shape fragments keep tool definitions DRY)
 // ---------------------------------------------------------------------------
 
-const blogId = z.string().min(1).describe("Blog ID, e.g. example.hatenablog.com");
+const identifier = z.string().min(1).max(MAX_IDENTIFIER_CHARS);
+const blogId = identifier.describe("Blog ID, e.g. example.hatenablog.com");
 const hatenaIdOverride = z
   .string()
   .min(1)
+  .max(MAX_IDENTIFIER_CHARS)
   .optional()
   .describe("Override the Hatena ID derived from the Authorization header");
 const contentTypeSchema = z
@@ -123,7 +132,7 @@ export async function listEntriesHandler(
       next_page: feed.nextPage,
     });
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "list_entries", requestId: ctx.requestId });
   }
 }
 
@@ -143,7 +152,7 @@ export async function getEntryHandler(
     const entry = await client.getEntry(args.entry_id);
     return ok(entryView(entry, args.include_html ?? false));
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "get_entry", requestId: ctx.requestId });
   }
 }
 
@@ -166,9 +175,12 @@ export async function createEntryHandler(
   ctx: ToolContext,
 ): Promise<ToolTextResult> {
   try {
-    if (args.scheduled === true && args.updated === undefined) {
+    if (args.scheduled === true && (args.updated === undefined || args.draft !== true)) {
       return toolError(
-        new Error("scheduled=true の場合は updated (ISO8601 の公開日時) を指定してください。"),
+        new Error(
+          "scheduled=true の場合は draft=true と updated (ISO8601 の公開日時) を指定してください。",
+        ),
+        { operation: "create_entry", requestId: ctx.requestId },
       );
     }
     const client = makeClient(ctx, args.blog_id, args.hatena_id);
@@ -188,7 +200,7 @@ export async function createEntryHandler(
     const entry = await client.createEntry(payload);
     return ok(entryView(entry, false));
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "create_entry", requestId: ctx.requestId });
   }
 }
 
@@ -203,6 +215,7 @@ interface UpdateEntryArgs {
   preview?: boolean | undefined;
   custom_url?: string | undefined;
   touch_updated?: boolean | undefined;
+  expected_edited?: string | undefined;
 }
 
 export async function updateEntryHandler(
@@ -212,6 +225,12 @@ export async function updateEntryHandler(
   try {
     const client = makeClient(ctx, args.blog_id, args.hatena_id);
     const existing = await client.getEntry(args.entry_id);
+    if (args.expected_edited !== undefined && existing.edited !== args.expected_edited) {
+      return toolError(
+        new Error("更新競合を検出しました。get_entry で最新状態を取得してから再試行してください。"),
+        { operation: "update_entry", requestId: ctx.requestId },
+      );
+    }
     const patch: EntryPatch = {};
     if (args.title !== undefined) patch.title = args.title;
     if (args.content !== undefined) patch.content = args.content;
@@ -224,7 +243,7 @@ export async function updateEntryHandler(
     const updated = await client.updateEntry(args.entry_id, payload);
     return ok(entryView(updated, false));
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "update_entry", requestId: ctx.requestId });
   }
 }
 
@@ -243,7 +262,7 @@ export async function deleteEntryHandler(
     await client.deleteEntry(args.entry_id);
     return ok({ ok: true });
   } catch (err) {
-    return toolError(err);
+    return toolError(err, { operation: "delete_entry", requestId: ctx.requestId });
   }
 }
 
@@ -260,7 +279,11 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        page: z.string().optional().describe("next_page token from a previous response"),
+        page: z
+          .string()
+          .max(MAX_IDENTIFIER_CHARS)
+          .optional()
+          .describe("next_page token from a previous response"),
         include_html: z
           .boolean()
           .optional()
@@ -278,7 +301,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        entry_id: z.string().min(1),
+        entry_id: identifier,
         include_html: z.boolean().optional(),
       },
       annotations: { readOnlyHint: true },
@@ -293,15 +316,19 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        title: z.string().min(1),
-        content: z.string(),
+        title: z.string().min(1).max(MAX_TITLE_CHARS),
+        content: z.string().max(MAX_CONTENT_CHARS),
         content_type: contentTypeSchema.optional(),
-        categories: z.array(z.string()).optional(),
+        categories: z.array(z.string().max(MAX_CATEGORY_CHARS)).max(MAX_CATEGORY_COUNT).optional(),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
-        scheduled: z.boolean().optional(),
-        updated: z.string().optional().describe("ISO-8601. Required when scheduled=true."),
-        custom_url: z.string().optional(),
+        scheduled: z.boolean().optional().describe("true requires draft=true and updated."),
+        updated: z
+          .string()
+          .max(MAX_IDENTIFIER_CHARS)
+          .optional()
+          .describe("ISO-8601. Required when scheduled=true."),
+        custom_url: z.string().max(MAX_IDENTIFIER_CHARS).optional(),
       },
     },
     (args) => createEntryHandler(args, ctx),
@@ -315,24 +342,30 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        entry_id: z.string().min(1),
-        title: z.string().optional(),
-        content: z.string().optional(),
+        entry_id: identifier,
+        title: z.string().max(MAX_TITLE_CHARS).optional(),
+        content: z.string().max(MAX_CONTENT_CHARS).optional(),
         categories: z
-          .array(z.string())
+          .array(z.string().max(MAX_CATEGORY_CHARS))
+          .max(MAX_CATEGORY_COUNT)
           .optional()
           .describe("空配列 [] を渡すとカテゴリを空にします"),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
-        custom_url: z.string().optional(),
+        custom_url: z.string().max(MAX_IDENTIFIER_CHARS).optional(),
         touch_updated: z
           .boolean()
           .optional()
           .describe(
             "true を指定した場合のみ現在時刻で updated を送信します (デフォルト false = 投稿日時を保持)",
           ),
+        expected_edited: z
+          .string()
+          .max(MAX_IDENTIFIER_CHARS)
+          .optional()
+          .describe("get_entry が返した edited。現在値と異なる場合は更新せず競合エラーにします"),
       },
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { destructiveHint: true },
     },
     (args) => updateEntryHandler(args, ctx),
   );
@@ -344,7 +377,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
-        entry_id: z.string().min(1),
+        entry_id: identifier,
       },
       annotations: { destructiveHint: true, idempotentHint: true },
     },

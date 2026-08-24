@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.bmp binary
+
+# Wrangler生成のランタイム型には末尾空白が含まれるため、生成物だけ検査対象から外す。
+src/worker-configuration.d.ts whitespace=-trailing-space

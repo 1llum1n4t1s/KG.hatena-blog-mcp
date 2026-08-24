@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import type { ToolContext } from "../../mcp/context.js";
 import { createServer } from "../../mcp/server.js";
 import { MissingCredentialsError, parseBasicAuth } from "../../utils/auth.js";
+import { ResponseBodyTooLargeError, readBytesWithLimit } from "../../utils/body.js";
+import { MAX_MCP_REQUEST_BYTES } from "../../utils/limits.js";
 
 // ---------------------------------------------------------------------------
 // CORS
@@ -12,8 +14,8 @@ import { MissingCredentialsError, parseBasicAuth } from "../../utils/auth.js";
 // 認証する設計) ので `Access-Control-Allow-Credentials` は付けない。
 // 一般的なリモート MCP サーバの構成に合わせている。
 //
-// 将来ドメインを絞りたくなったら ALLOWED_ORIGINS (カンマ区切り) をセットし、
-// 一致した Origin のみエコーバックする形に切り替えられる。
+// ALLOWED_ORIGINS (カンマ区切り) が空なら `*`、設定時は一致した Origin のみ
+// エコーバックし、リスト外の明示的な Origin は 403 で拒否する。
 
 const DEFAULT_ALLOW_HEADERS = "Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version";
 const DEFAULT_ALLOW_METHODS = "GET, POST, DELETE, OPTIONS";
@@ -22,8 +24,7 @@ const DEFAULT_EXPOSE_HEADERS = "Mcp-Session-Id";
 function resolveAllowedOrigin(requestOrigin: string | null, allowlist?: string[]): string {
   if (!allowlist || allowlist.length === 0) return "*";
   if (requestOrigin && allowlist.includes(requestOrigin)) return requestOrigin;
-  // No match: still echo the first allowed origin so browsers at least see a
-  // deterministic value (the request will be blocked client-side anyway).
+  // Requests with a disallowed explicit Origin are rejected before this helper.
   return allowlist[0] ?? "*";
 }
 
@@ -37,15 +38,6 @@ function parseAllowedOrigins(env: Env | undefined): string[] | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Env
-// ---------------------------------------------------------------------------
-
-export interface Env {
-  /** Optional comma-separated allowlist. When unset, CORS responds with `*`. */
-  ALLOWED_ORIGINS?: string;
-}
-
-// ---------------------------------------------------------------------------
 // App factory (exported for tests; default export is the one-shot instance)
 // ---------------------------------------------------------------------------
 
@@ -54,7 +46,14 @@ export function createApp() {
 
   app.use("*", async (c, next) => {
     const allowlist = parseAllowedOrigins(c.env);
-    const origin = resolveAllowedOrigin(c.req.header("origin") ?? null, allowlist);
+    const requestOrigin = c.req.header("origin") ?? null;
+    if (allowlist && requestOrigin && !allowlist.includes(requestOrigin)) {
+      return new Response("Origin is not allowed.", {
+        status: 403,
+        headers: { Vary: "Origin" },
+      });
+    }
+    const origin = resolveAllowedOrigin(requestOrigin, allowlist);
 
     if (c.req.method === "OPTIONS") {
       return new Response(null, {
@@ -88,25 +87,53 @@ export function createApp() {
   );
 
   app.all("/mcp", async (c) => {
+    const contentLength = Number(c.req.header("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > MAX_MCP_REQUEST_BYTES) {
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          error: { code: -32002, message: "Request body is too large." },
+          id: null,
+        },
+        413,
+      );
+    }
+
+    let transportRequest = c.req.raw;
+    if (c.req.method === "POST" && c.req.raw.body) {
+      try {
+        const body = await readBytesWithLimit(c.req.raw.body, MAX_MCP_REQUEST_BYTES);
+        transportRequest = new Request(c.req.raw.url, {
+          method: c.req.raw.method,
+          headers: c.req.raw.headers,
+          body,
+          signal: c.req.raw.signal,
+        });
+      } catch (err) {
+        if (err instanceof ResponseBodyTooLargeError) {
+          return c.json(
+            {
+              jsonrpc: "2.0",
+              error: { code: -32002, message: "Request body is too large." },
+              id: null,
+            },
+            413,
+          );
+        }
+        throw err;
+      }
+    }
+
     // Parse BYOK credentials once per request; the MCP server closes over them
     // so every tool invocation inside this request relays the same header.
     let ctx: ToolContext;
     try {
-      const rawAuth = c.req.header("authorization") ?? "";
-      const authScheme = rawAuth.split(/\s+/, 1)[0] || "<none>";
-      const headerNames: string[] = [];
-      c.req.raw.headers.forEach((_v, name) => headerNames.push(name));
-      console.log(
-        JSON.stringify({
-          tag: "auth-probe",
-          method: c.req.method,
-          authScheme,
-          authLen: rawAuth.length,
-          headerNames,
-        }),
-      );
       const credentials = parseBasicAuth(c.req.header("authorization") ?? null);
-      ctx = { credentials };
+      ctx = {
+        credentials,
+        signal: c.req.raw.signal,
+        requestId: c.req.header("cf-ray") ?? crypto.randomUUID(),
+      };
     } catch (err) {
       if (err instanceof MissingCredentialsError) {
         return c.json(
@@ -136,7 +163,7 @@ export function createApp() {
 
     try {
       await server.connect(transport);
-      return await transport.handleRequest(c.req.raw);
+      return await transport.handleRequest(transportRequest);
     } finally {
       // Fire-and-forget: closing is best-effort; we don't want cleanup errors
       // to mask a successful response.

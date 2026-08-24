@@ -15,6 +15,9 @@ export interface ToolContext {
   credentials: BasicCredentials;
   fetchImpl?: typeof fetch;
   retry?: RetryOptions;
+  signal?: AbortSignal;
+  requestTimeoutMs?: number;
+  requestId?: string;
 }
 
 /**
@@ -39,5 +42,7 @@ export function makeClient(
   };
   if (ctx.fetchImpl) opts.fetchImpl = ctx.fetchImpl;
   if (ctx.retry) opts.retry = ctx.retry;
+  if (ctx.signal) opts.signal = ctx.signal;
+  if (ctx.requestTimeoutMs !== undefined) opts.requestTimeoutMs = ctx.requestTimeoutMs;
   return new AtomPubClient(opts);
 }

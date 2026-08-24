@@ -2,10 +2,11 @@
  * `fetch` wrapper that retries transient failures from the Hatena AtomPub API.
  *
  * Retries:
- *   - HTTP 429 (rate limited) and 5xx (server errors / gateway blips)
+ *   - HTTP 429, 502, 503, and 504
  *   - Network-level rejections (DNS, TLS, fetch threw)
  *
  * Does NOT retry:
+ *   - Non-idempotent methods such as POST
  *   - 4xx other than 429 (caller bug / auth issue — retrying won't help)
  *   - AbortError from the caller's signal (user gave up deliberately)
  *
@@ -22,7 +23,7 @@ export interface RetryOptions {
   /** Deterministic backoff source (0..1). Default: Math.random. Tests pass a stub. */
   random?: () => number;
   /** Deterministic sleep. Default: setTimeout. Tests pass a no-op collector. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
   /** Override `fetch` — useful for Workers, Node tests, etc. */
   fetchImpl?: typeof fetch;
   /** Wall-clock source used to parse Retry-After HTTP-dates. */
@@ -37,16 +38,32 @@ const DEFAULTS = {
 };
 
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+const RETRYABLE_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PUT", "TRACE"]);
 
-const defaultSleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const defaultSleep = (ms: number, signal?: AbortSignal | null): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"));
+      return;
+    }
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(signal?.reason ?? new DOMException("The operation was aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 
 export async function fetchWithRetry(
   input: string | URL | Request,
   init: RequestInit = {},
   opts: RetryOptions = {},
 ): Promise<Response> {
-  const maxRetries = opts.maxRetries ?? DEFAULTS.maxRetries;
+  const method = resolveMethod(input, init);
+  const maxRetries = RETRYABLE_METHODS.has(method) ? (opts.maxRetries ?? DEFAULTS.maxRetries) : 0;
   const baseDelayMs = opts.baseDelayMs ?? DEFAULTS.baseDelayMs;
   const factor = opts.factor ?? DEFAULTS.factor;
   const maxDelayMs = opts.maxDelayMs ?? DEFAULTS.maxDelayMs;
@@ -54,6 +71,7 @@ export async function fetchWithRetry(
   const sleep = opts.sleep ?? defaultSleep;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const now = opts.now ?? Date.now;
+  const signal = init.signal ?? (input instanceof Request ? input.signal : undefined);
 
   let attempt = 0;
   let lastError: unknown;
@@ -78,10 +96,10 @@ export async function fetchWithRetry(
       });
       // Consume the body so the connection can be reused.
       await response.body?.cancel?.();
-      await sleep(waitMs);
+      await sleep(waitMs, signal);
     } catch (err) {
       lastError = err;
-      if (isAbortError(err) || attempt === maxRetries) {
+      if (signal?.aborted || isAbortError(err) || attempt === maxRetries) {
         throw err;
       }
       const waitMs = computeWaitMs({
@@ -93,13 +111,19 @@ export async function fetchWithRetry(
         retryAfter: null,
         now,
       });
-      await sleep(waitMs);
+      await sleep(waitMs, signal);
     }
     attempt += 1;
   }
 
   // Loop only exits via return/throw above; this satisfies the type checker.
   throw lastError ?? new Error("fetchWithRetry exhausted retries");
+}
+
+function resolveMethod(input: string | URL | Request, init: RequestInit): string {
+  if (init.method) return init.method.toUpperCase();
+  if (input instanceof Request) return input.method.toUpperCase();
+  return "GET";
 }
 
 function computeWaitMs(args: {

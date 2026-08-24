@@ -6,7 +6,7 @@
   "author": "Keisuke Nishitani",
   "repository": {
     "type": "git",
-    "url": "https://github.com/keisuke69/hatena-blog-mcp.git"
+    "url": "https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git"
   },
   "type": "module",
   "private": true,
@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "types:worker": "wrangler types src/worker-configuration.d.ts --env-interface Env --strict-vars=false",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
   },

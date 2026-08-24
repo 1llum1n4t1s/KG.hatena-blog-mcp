@@ -1,3 +1,4 @@
+import { MAX_XML_RESPONSE_BYTES, readErrorText, readTextWithLimit } from "../utils/body.js";
 import type { RetryOptions } from "../utils/retry.js";
 import { fetchWithRetry } from "../utils/retry.js";
 import { AtomPubError } from "./errors.js";
@@ -39,22 +40,29 @@ export interface AtomPubClientOptions {
   blogId: string;
   fetchImpl?: typeof fetch;
   retry?: RetryOptions;
+  signal?: AbortSignal;
+  requestTimeoutMs?: number;
 }
 
 const ATOMPUB_BASE = "https://blog.hatena.ne.jp";
 const CONTENT_TYPE_XML = "application/xml; charset=utf-8";
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 export class AtomPubClient {
   private readonly credentials: AtomPubCredentials;
   private readonly blogId: string;
   private readonly fetchImpl: typeof fetch;
   private readonly retry: RetryOptions;
+  private readonly signal: AbortSignal | undefined;
+  private readonly requestTimeoutMs: number;
 
   constructor(opts: AtomPubClientOptions) {
     this.credentials = opts.credentials;
     this.blogId = opts.blogId;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.retry = opts.retry ?? {};
+    this.signal = opts.signal;
+    this.requestTimeoutMs = opts.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   }
 
   // ------------------------------------------------------------------ URLs
@@ -146,17 +154,27 @@ export class AtomPubClient {
     if (body !== undefined) {
       headers["Content-Type"] = CONTENT_TYPE_XML;
     }
-    const response = await fetchWithRetry(
-      url,
-      {
-        method,
-        headers,
-        ...(body !== undefined ? { body } : {}),
-      },
-      { ...this.retry, fetchImpl: this.fetchImpl },
-    );
+    let response: Response;
+    try {
+      response = await fetchWithRetry(
+        url,
+        {
+          method,
+          headers,
+          signal: this.createRequestSignal(),
+          ...(body !== undefined ? { body } : {}),
+        },
+        { ...this.retry, fetchImpl: this.fetchImpl },
+      );
+    } catch (cause) {
+      throw new AtomPubError("Hatena AtomPub network request failed", {
+        status: 0,
+        code: "network_error",
+        cause,
+      });
+    }
     if (!response.ok) {
-      const text = await safeReadText(response);
+      const text = await readErrorText(response);
       throw new AtomPubError(describeStatus(response.status), {
         status: response.status,
         body: text,
@@ -167,7 +185,20 @@ export class AtomPubClient {
 
   private async requestXml(method: string, url: string, body?: string): Promise<string> {
     const response = await this.request(method, url, body);
-    return await response.text();
+    try {
+      return await readTextWithLimit(response, MAX_XML_RESPONSE_BYTES);
+    } catch (cause) {
+      throw new AtomPubError("Hatena AtomPub response exceeded the XML size limit", {
+        status: 0,
+        code: "parse_error",
+        cause,
+      });
+    }
+  }
+
+  private createRequestSignal(): AbortSignal {
+    const timeout = AbortSignal.timeout(this.requestTimeoutMs);
+    return this.signal ? AbortSignal.any([this.signal, timeout]) : timeout;
   }
 }
 
@@ -181,14 +212,6 @@ function buildUrlWithPage(base: string, page: string | undefined): string {
 
 function encode(segment: string): string {
   return encodeURIComponent(segment);
-}
-
-async function safeReadText(res: Response): Promise<string> {
-  try {
-    return await res.text();
-  } catch {
-    return "";
-  }
 }
 
 function describeStatus(status: number): string {

@@ -168,6 +168,16 @@ describe("getEntryHandler", () => {
     expect(res.isError).toBeUndefined();
     expect(res.structuredContent?.id).toBe("3000000000000000010");
   });
+
+  it("取得エラーをisErrorへ変換する", async () => {
+    const { ctx } = makeCtx([new Response("missing", { status: 404 })]);
+    const res = await getEntryHandler(
+      { blog_id: "example_user.hatenablog.com", entry_id: "missing" },
+      ctx,
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toContain("見つかりません");
+  });
 });
 
 describe("createEntryHandler", () => {
@@ -184,6 +194,22 @@ describe("createEntryHandler", () => {
     );
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain("updated");
+  });
+
+  it("scheduled=true は updated があっても draft=true でなければ拒否する", async () => {
+    const { ctx } = makeCtx([]);
+    const res = await createEntryHandler(
+      {
+        blog_id: "example_user.hatenablog.com",
+        title: "x",
+        content: "y",
+        scheduled: true,
+        updated: "2026-08-25T09:00:00+09:00",
+      },
+      ctx,
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toContain("draft=true");
   });
 
   it("POSTで新規投稿しエントリを返す", async () => {
@@ -249,6 +275,43 @@ describe("updateEntryHandler", () => {
       ctx,
     );
     expect(calls[1]?.body).toContain("<updated>");
+  });
+
+  it("expected_edited が現在値と異なる場合はPUTせず競合エラーを返す", async () => {
+    const { ctx, calls } = makeCtx([
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+    ]);
+    const res = await updateEntryHandler(
+      {
+        blog_id: "example_user.hatenablog.com",
+        entry_id: "3000000000000000010",
+        title: "競合する変更",
+        expected_edited: "2026-04-18T09:00:00+09:00",
+      },
+      ctx,
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toContain("更新競合");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe("GET");
+  });
+
+  it("expected_edited が現在値と一致する場合はPUTする", async () => {
+    const { ctx, calls } = makeCtx([
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+    ]);
+    const res = await updateEntryHandler(
+      {
+        blog_id: "example_user.hatenablog.com",
+        entry_id: "3000000000000000010",
+        title: "競合なし",
+        expected_edited: "2026-04-18T10:15:00+09:00",
+      },
+      ctx,
+    );
+    expect(res.isError).toBeUndefined();
+    expect(calls[1]?.method).toBe("PUT");
   });
 });
 
