@@ -16,6 +16,8 @@
 export interface RetryOptions {
   maxRetries?: number;
   baseDelayMs?: number;
+  /** Timeout applied independently to each fetch attempt. */
+  attemptTimeoutMs?: number;
   /** Multiplier per attempt; 2 means 1s, 2s, 4s ... */
   factor?: number;
   /** Upper bound on a single wait — useful for very polite retries. */
@@ -71,14 +73,22 @@ export async function fetchWithRetry(
   const sleep = opts.sleep ?? defaultSleep;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const now = opts.now ?? Date.now;
-  const signal = init.signal ?? (input instanceof Request ? input.signal : undefined);
+  const callerSignal = init.signal ?? (input instanceof Request ? input.signal : undefined);
+  const attemptTimeoutMs = opts.attemptTimeoutMs;
 
   let attempt = 0;
   let lastError: unknown;
 
   while (attempt <= maxRetries) {
+    const timeoutSignal =
+      attemptTimeoutMs === undefined ? undefined : AbortSignal.timeout(attemptTimeoutMs);
+    const attemptSignal =
+      callerSignal && timeoutSignal
+        ? AbortSignal.any([callerSignal, timeoutSignal])
+        : (callerSignal ?? timeoutSignal);
+    const attemptInit = attemptSignal ? { ...init, signal: attemptSignal } : init;
     try {
-      const response = await fetchImpl(input, init);
+      const response = await fetchImpl(input, attemptInit);
       if (!RETRYABLE_STATUSES.has(response.status)) {
         return response;
       }
@@ -96,10 +106,15 @@ export async function fetchWithRetry(
       });
       // Consume the body so the connection can be reused.
       await response.body?.cancel?.();
-      await sleep(waitMs, signal);
+      await sleep(waitMs, callerSignal);
     } catch (err) {
       lastError = err;
-      if (signal?.aborted || isAbortError(err) || attempt === maxRetries) {
+      const attemptTimedOut = timeoutSignal?.aborted === true && callerSignal?.aborted !== true;
+      if (
+        callerSignal?.aborted === true ||
+        (!attemptTimedOut && isAbortError(err)) ||
+        attempt === maxRetries
+      ) {
         throw err;
       }
       const waitMs = computeWaitMs({
@@ -111,7 +126,7 @@ export async function fetchWithRetry(
         retryAfter: null,
         now,
       });
-      await sleep(waitMs, signal);
+      await sleep(waitMs, callerSignal);
     }
     attempt += 1;
   }

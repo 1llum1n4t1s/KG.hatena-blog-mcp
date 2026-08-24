@@ -41,7 +41,7 @@
 2. stdioアダプターが2値の存在を検証し、`hatena_id:api_key` から上流用Basic Authorizationをメモリ上で生成する。
 3. 認証contextを閉じ込めた `McpServer` をプロセスごとに1つ生成し、stdio transportへ接続する。
 4. MCP SDKが標準入力のメッセージを各ツールhandlerへdispatchする。
-5. ブログ系ツールは `AtomPubClient`、画像系ツールは `FotolifeClient` を呼ぶ。クライアントは30秒timeoutを上流fetchへ適用する。
+5. ブログ系ツールは `AtomPubClient`、画像系ツールは `FotolifeClient` を呼ぶ。クライアントは各上流fetch試行へ30秒timeoutを適用する。
 6. XMLを型付きモデルへ変換し、MCPのtext contentとstructured contentを標準出力へ返す。
 7. 失敗時は利用者向けメッセージをMCP結果にし、stderrには秘密を含まない分類済みログだけを出す。
 
@@ -81,7 +81,9 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 - 429、502、503、504とnetwork例外をretry対象とする。
 - 自動retryはGET、PUT、DELETE、HEAD、OPTIONS、TRACEに限定する。POSTは重複作成を防ぐため再試行しない。
 - `Retry-After` を優先し、通常は指数backoff、jitter、最大待機時間を適用する。
-- abortは即時伝播し、上流network例外とtimeoutは `AtomPubError` の `network_error` へ正規化する。
+- 呼び出し元abortは即時伝播する。試行timeoutは冪等メソッドなら新しいtimeoutで再試行し、retry待機中は呼び出し元abortだけを監視する。
+- 上流network例外と、最終試行まで失敗したtimeoutは `AtomPubError` の `network_error` へ正規化する。
+- FotolifeのGETは各試行で新しいWSSEヘッダを生成する。
 - 非成功HTTPレスポンスはstatusに対応する `AtomPubError` へ変換し、MCP層で日本語メッセージへ写像する。
 
 ## 採用済み設計判断とトレードオフ

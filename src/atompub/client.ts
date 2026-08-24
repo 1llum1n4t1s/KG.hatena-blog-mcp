@@ -161,10 +161,14 @@ export class AtomPubClient {
         {
           method,
           headers,
-          signal: this.createRequestSignal(),
+          ...(this.signal ? { signal: this.signal } : {}),
           ...(body !== undefined ? { body } : {}),
         },
-        { ...this.retry, fetchImpl: this.fetchImpl },
+        {
+          ...this.retry,
+          attemptTimeoutMs: this.requestTimeoutMs,
+          fetchImpl: this.fetchImpl,
+        },
       );
     } catch (cause) {
       throw new AtomPubError("Hatena AtomPub network request failed", {
@@ -194,11 +198,6 @@ export class AtomPubClient {
         cause,
       });
     }
-  }
-
-  private createRequestSignal(): AbortSignal {
-    const timeout = AbortSignal.timeout(this.requestTimeoutMs);
-    return this.signal ? AbortSignal.any([this.signal, timeout]) : timeout;
   }
 }
 

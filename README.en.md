@@ -131,7 +131,7 @@ The official Fotolife feed does not list the private “Hatena Blog” folder po
 - Entry body: 4 MiB
 - Decoded image: 10 MiB
 - Categories: 100 entries, 256 characters each
-- Upstream timeout: 30 seconds
+- Upstream timeout: 30 seconds per attempt
 - Automatic retry: idempotent methods such as GET, PUT, and DELETE only; never POST
 
 ## Development and verification

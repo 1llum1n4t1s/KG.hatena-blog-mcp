@@ -131,7 +131,7 @@ pnpm build
 - 記事本文: 4 MiB
 - デコード後の画像: 10 MiB
 - カテゴリ: 100件、各256文字
-- 上流API timeout: 30秒
+- 上流API timeout: 1回の試行につき30秒
 - 自動再試行: GET / PUT / DELETEなどの冪等メソッドのみ。POSTは再試行しません。
 
 ## 開発と検証

@@ -27,6 +27,26 @@ describe("FotolifeClient", () => {
     expect(url).toBe("https://f.hatena.ne.jp/atom/edit/20260824010101");
   });
 
+  it("getImageの再試行ごとにWSSEヘッダーを再生成する", async () => {
+    let calls = 0;
+    const wsseHeaders: string[] = [];
+    const client = new FotolifeClient({
+      credentials,
+      retry: { maxRetries: 1, baseDelayMs: 0, sleep: async () => {} },
+      fetchImpl: async (_input, init) => {
+        calls += 1;
+        wsseHeaders.push(new Headers(init?.headers).get("X-WSSE") ?? "");
+        return calls === 1
+          ? new Response("temporary", { status: 503 })
+          : new Response(entryXml, { status: 200 });
+      },
+    });
+    await client.getImage("20260824010101p");
+    expect(calls).toBe(2);
+    expect(wsseHeaders[0]).toContain("UsernameToken");
+    expect(wsseHeaders[0]).not.toBe(wsseHeaders[1]);
+  });
+
   it("uploadImageはPOSTし、記事用記法を返す", async () => {
     let request: { url: string; init?: RequestInit } | undefined;
     const client = new FotolifeClient({

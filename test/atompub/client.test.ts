@@ -180,6 +180,39 @@ describe("AtomPubClient — categories", () => {
 });
 
 describe("AtomPubClient — error mapping", () => {
+  it("GETの試行timeout後は新しいsignalで再試行する", async () => {
+    let calls = 0;
+    const signals: AbortSignal[] = [];
+    const client = new AtomPubClient({
+      credentials: creds,
+      blogId,
+      requestTimeoutMs: 1,
+      retry: {
+        maxRetries: 1,
+        baseDelayMs: 0,
+        sleep: async () => {},
+      },
+      fetchImpl: async (_input, init) => {
+        calls += 1;
+        const signal = init?.signal;
+        if (!signal) throw new Error("attempt signal is missing");
+        signals.push(signal);
+        if (calls === 1) {
+          return new Promise<Response>((_resolve, reject) => {
+            const onAbort = () => reject(signal.reason);
+            if (signal.aborted) onAbort();
+            else signal.addEventListener("abort", onAbort, { once: true });
+          });
+        }
+        return new Response(readFixture("entry-list.xml"), { status: 200 });
+      },
+    });
+    const result = await client.listEntries();
+    expect(result.entries.length).toBeGreaterThan(0);
+    expect(calls).toBe(2);
+    expect(signals[0]).not.toBe(signals[1]);
+  });
+
   it("401 maps to AtomPubError(code=unauthorized)", async () => {
     const { client } = makeClient([new Response("nope", { status: 401 })]);
     await expect(client.getEntry("1")).rejects.toMatchObject({

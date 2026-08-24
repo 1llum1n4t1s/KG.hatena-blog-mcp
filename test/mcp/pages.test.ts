@@ -130,6 +130,7 @@ describe("createPageHandler", () => {
         blog_id: "example_user.hatenablog.com",
         title: "新ページ",
         content: "body",
+        updated: "2026-08-25T09:30:00+09:00",
         custom_url: "new-page",
       },
       ctx,
@@ -137,6 +138,7 @@ describe("createPageHandler", () => {
     expect(res.isError).toBeUndefined();
     expect(calls[0]?.method).toBe("POST");
     expect(calls[0]?.body).toContain("<hatenablog:custom-url>new-page</hatenablog:custom-url>");
+    expect(calls[0]?.body).toContain("<updated>2026-08-25T09:30:00+09:00</updated>");
     // ページには scheduled は無い
     expect(calls[0]?.body).not.toContain("<hatenablog:scheduled>");
   });

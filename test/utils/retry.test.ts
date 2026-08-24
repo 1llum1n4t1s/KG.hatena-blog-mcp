@@ -142,19 +142,75 @@ describe("fetchWithRetry", () => {
     expect(rec.waits).toEqual([50, 100]);
   });
 
-  it("propagates AbortError immediately (no retry)", async () => {
+  it("propagates a caller abort immediately without retrying", async () => {
     const rec: Recorder = { calls: 0, waits: [] };
+    const controller = new AbortController();
     const fetchImpl = async (): Promise<Response> => {
       rec.calls += 1;
-      const err = new Error("aborted");
-      err.name = "AbortError";
-      throw err;
+      controller.abort(new DOMException("aborted", "AbortError"));
+      throw controller.signal.reason;
     };
-    await expect(fetchWithRetry("https://x", {}, { ...makeDeps(rec), fetchImpl })).rejects.toThrow(
-      /aborted/,
-    );
+    await expect(
+      fetchWithRetry("https://x", { signal: controller.signal }, { ...makeDeps(rec), fetchImpl }),
+    ).rejects.toThrow(/aborted/);
     expect(rec.calls).toBe(1);
     expect(rec.waits).toEqual([]);
+  });
+
+  it("retries a per-attempt timeout with a fresh signal", async () => {
+    const rec: Recorder = { calls: 0, waits: [] };
+    const signals: AbortSignal[] = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      rec.calls += 1;
+      const signal = init?.signal;
+      if (!signal) throw new Error("attempt signal is missing");
+      signals.push(signal);
+      if (rec.calls === 1) {
+        return new Promise<Response>((_resolve, reject) => {
+          const onAbort = () => reject(signal.reason);
+          if (signal.aborted) onAbort();
+          else signal.addEventListener("abort", onAbort, { once: true });
+        });
+      }
+      return makeResponse(200);
+    };
+    const response = await fetchWithRetry(
+      "https://x",
+      {},
+      {
+        ...makeDeps(rec),
+        attemptTimeoutMs: 1,
+        fetchImpl,
+        maxRetries: 1,
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(rec.calls).toBe(2);
+    expect(signals[0]).not.toBe(signals[1]);
+  });
+
+  it("does not let an attempt timeout cancel Retry-After sleep", async () => {
+    let calls = 0;
+    let attemptSignal: AbortSignal | null | undefined;
+    let sleepSignal: AbortSignal | null | undefined = null;
+    await fetchWithRetry(
+      "https://x",
+      {},
+      {
+        attemptTimeoutMs: 1,
+        fetchImpl: async (_input, init) => {
+          calls += 1;
+          attemptSignal = init?.signal;
+          return calls === 1 ? makeResponse(429, { "Retry-After": "30" }) : makeResponse(200);
+        },
+        maxRetries: 1,
+        sleep: async (_ms, signal) => {
+          sleepSignal = signal;
+        },
+      },
+    );
+    expect(attemptSignal).toBeDefined();
+    expect(sleepSignal).toBeUndefined();
   });
 
   it("throws the final network error after exhausting retries", async () => {

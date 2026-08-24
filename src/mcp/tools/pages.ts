@@ -133,6 +133,7 @@ interface CreatePageArgs {
   content_type?: ContentType | undefined;
   draft?: boolean | undefined;
   preview?: boolean | undefined;
+  updated?: string | undefined;
   custom_url: string;
 }
 
@@ -152,6 +153,7 @@ export async function createPageHandler(
       },
     };
     if (args.content_type !== undefined) payload.contentType = args.content_type;
+    if (args.updated !== undefined) payload.updated = args.updated;
     const page = await client.createPage(payload);
     return ok(pageView(page, false));
   } catch (err) {
@@ -271,6 +273,11 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
         content_type: contentTypeSchema.optional(),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
+        updated: z
+          .string()
+          .max(MAX_IDENTIFIER_CHARS)
+          .optional()
+          .describe("ISO-8601 の公開日時。省略時ははてな側の現在時刻を使います。"),
         custom_url: z
           .string()
           .min(1)

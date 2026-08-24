@@ -49,25 +49,30 @@ export class FotolifeClient {
   }
 
   private async requestXml(method: "GET" | "POST", url: string, body?: string): Promise<string> {
-    const authHeaders = await buildWsseHeaders(this.credentials);
-    const headers: Record<string, string> = {
-      ...authHeaders,
+    const baseHeaders: Record<string, string> = {
       Accept: "application/x.atom+xml, application/xml, text/xml",
     };
-    if (body !== undefined) headers["Content-Type"] = CONTENT_TYPE_XML;
+    if (body !== undefined) baseHeaders["Content-Type"] = CONTENT_TYPE_XML;
     const init: RequestInit = {
       method,
-      headers,
-      signal: this.createRequestSignal(),
+      headers: baseHeaders,
+      ...(this.signal ? { signal: this.signal } : {}),
       ...(body !== undefined ? { body } : {}),
+    };
+    const authenticatedFetch: typeof fetch = async (input, attemptInit) => {
+      const headers = new Headers(attemptInit?.headers);
+      const authHeaders = await buildWsseHeaders(this.credentials);
+      for (const [name, value] of Object.entries(authHeaders)) headers.set(name, value);
+      return this.fetchImpl(input, { ...attemptInit, headers });
     };
 
     let response: Response;
     try {
-      response =
-        method === "GET"
-          ? await fetchWithRetry(url, init, { ...this.retry, fetchImpl: this.fetchImpl })
-          : await this.fetchImpl(url, init);
+      response = await fetchWithRetry(url, init, {
+        ...this.retry,
+        attemptTimeoutMs: this.requestTimeoutMs,
+        fetchImpl: authenticatedFetch,
+      });
     } catch (cause) {
       throw new AtomPubError("Hatena Fotolife network request failed", {
         status: 0,
@@ -91,11 +96,6 @@ export class FotolifeClient {
         cause,
       });
     }
-  }
-
-  private createRequestSignal(): AbortSignal {
-    const timeout = AbortSignal.timeout(this.requestTimeoutMs);
-    return this.signal ? AbortSignal.any([this.signal, timeout]) : timeout;
   }
 }
 

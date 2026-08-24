@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- AtomPubとFotolifeの上流timeoutを試行単位にし、`Retry-After` 待機が前試行のtimeoutで中断される問題を修正
+- FotolifeのGET再試行でWSSEヘッダを試行ごとに再生成
+- `create_page` の `updated` をMCP schemaとhandlerへ配線し、READMEの契約と一致
+
 ## [1.0.1] - 2026-08-25
 
 ### Changed

@@ -41,7 +41,11 @@ try {
   if (!createEntry?.inputSchema.properties?.eyecatch_image_url) {
     throw new Error("create_entry is missing eyecatch_image_url");
   }
-  console.log("stdio smoke: 13 tools and eyecatch_image_url are available");
+  const createPage = result.tools.find((tool) => tool.name === "create_page");
+  if (!createPage?.inputSchema.properties?.updated) {
+    throw new Error("create_page is missing updated");
+  }
+  console.log("stdio smoke: 13 tools, eyecatch_image_url, and create_page.updated are available");
 } finally {
   await client.close();
 }
