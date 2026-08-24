@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-25
+
 ### Changed
 
 - **破壊的変更:** npmパッケージの実行方式をCloudflare Workerモジュールからローカルstdio CLIへ変更。既存利用者はWorker URLと `mcp-remote` を外し、`npx --yes @kagayoi/hatena-blog-mcp@latest` と `HATENA_ID` / `HATENA_API_KEY` をMCPクライアントへ設定してください
