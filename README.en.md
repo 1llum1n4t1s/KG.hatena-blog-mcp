@@ -2,6 +2,8 @@
 
 [日本語 README](./README.md) | English
 
+[![npm version](https://img.shields.io/npm/v/@kagayoi/hatena-blog-mcp)](https://www.npmjs.com/package/@kagayoi/hatena-blog-mcp)
+
 An MCP (Model Context Protocol) server that wraps the [Hatena Blog AtomPub API](https://developer.hatena.ne.jp/ja/documents/blog/apis/atom) and [Hatena Fotolife Atom API](https://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom/) with **read and write** support, designed to run on **Cloudflare Workers** with a **BYOK (Bring Your Own Key)** model.
 
 Built for the canonical use case of asking Claude to bulk re-tag categories across every entry in a blog — without accidentally rewriting titles, bodies, or publish dates along the way.
@@ -33,7 +35,54 @@ Built for the canonical use case of asking Claude to bulk re-tag categories acro
 
 ## Quick start: Deploy to Cloudflare Workers
 
+### Install from npm
+
 ```sh
+mkdir my-hatena-blog-mcp
+cd my-hatena-blog-mcp
+npm init -y
+npm install @kagayoi/hatena-blog-mcp
+npm install --save-dev wrangler
+```
+
+Create `src/index.ts` and re-export the packaged Worker:
+
+```ts
+export { default } from "@kagayoi/hatena-blog-mcp";
+```
+
+Create `wrangler.jsonc` with your own Worker name and settings:
+
+```jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-hatena-blog-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal", "request_signal_passthrough"],
+  "vars": {
+    "ALLOWED_ORIGINS": ""
+  },
+  "observability": {
+    "enabled": true
+  }
+}
+```
+
+```sh
+npx wrangler login
+npx wrangler deploy
+```
+
+The npm package exports a Cloudflare Worker module. It is not a stdio server launched with `npx @kagayoi/hatena-blog-mcp`.
+
+### Install from the source repository
+
+This method requires pnpm 10 or later.
+
+```sh
+git clone https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git
+cd KG.hatena-blog-mcp
 pnpm install
 pnpm exec wrangler login
 pnpm exec wrangler deploy

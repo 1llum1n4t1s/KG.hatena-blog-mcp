@@ -2,6 +2,8 @@
 
 日本語 | [English README](./README.en.md)
 
+[![npm version](https://img.shields.io/npm/v/@kagayoi/hatena-blog-mcp)](https://www.npmjs.com/package/@kagayoi/hatena-blog-mcp)
+
 > [!IMPORTANT]
 > このリポジトリは [Keisuke69/hatena-blog-mcp](https://github.com/Keisuke69/hatena-blog-mcp) をフォークし、独自に保守している非公式の派生版です。はてなフォトライフ対応、更新競合の検出、入力・レスポンス上限、Cloudflare Workers 向けの堅牢化など、フォーク固有の変更を含みます。これらの変更に関する Issue は[このフォーク](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/issues)へ報告してください。変更内容は [CHANGELOG.md](./CHANGELOG.md) にまとめています。
 
@@ -39,10 +41,56 @@
 ### 前提条件
 
 - Node.js 22 以上
-- pnpm 10 以上
 - Cloudflare アカウントと、Workers をデプロイできる権限
 
+### npmパッケージから利用する
+
 ```sh
+mkdir my-hatena-blog-mcp
+cd my-hatena-blog-mcp
+npm init -y
+npm install @kagayoi/hatena-blog-mcp
+npm install --save-dev wrangler
+```
+
+`src/index.ts` を作成し、パッケージのWorkerを再exportします。
+
+```ts
+export { default } from "@kagayoi/hatena-blog-mcp";
+```
+
+`wrangler.jsonc` には利用者自身のWorker名と設定を記載します。
+
+```jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-hatena-blog-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal", "request_signal_passthrough"],
+  "vars": {
+    "ALLOWED_ORIGINS": ""
+  },
+  "observability": {
+    "enabled": true
+  }
+}
+```
+
+```sh
+npx wrangler login
+npx wrangler deploy
+```
+
+npmパッケージはCloudflare Workers用のモジュールです。`npx @kagayoi/hatena-blog-mcp` で起動するstdioサーバーではありません。
+
+### ソースリポジトリから利用する
+
+この方法では pnpm 10 以上を使用します。
+
+```sh
+git clone https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git
+cd KG.hatena-blog-mcp
 pnpm install
 pnpm exec wrangler login
 pnpm exec wrangler deploy

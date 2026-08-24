@@ -1,15 +1,41 @@
 {
-  "name": "hatena-blog-mcp",
-  "version": "0.0.1",
-  "description": "MCP server that wraps the Hatena Blog AtomPub API with read/write support, designed for Cloudflare Workers with BYOK (Bring Your Own Key).",
+  "name": "@kagayoi/hatena-blog-mcp",
+  "version": "0.0.2",
+  "description": "Kagayoi-maintained Hatena Blog and Fotolife MCP server for Cloudflare Workers with BYOK.",
   "license": "MIT",
   "author": "Keisuke Nishitani",
   "repository": {
     "type": "git",
-    "url": "https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git"
+    "url": "git+https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git"
   },
+  "homepage": "https://github.com/1llum1n4t1s/KG.hatena-blog-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "hatena-blog",
+    "hatena-fotolife",
+    "cloudflare-workers",
+    "atompub"
+  ],
   "type": "module",
-  "private": true,
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "wrangler.jsonc",
+    "tsconfig.json",
+    "README.en.md",
+    "CHANGELOG.md",
+    "DESIGN.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@10.11.1",
   "engines": {
     "node": ">=22.0.0",
@@ -25,7 +51,8 @@
     "test:coverage": "vitest run --coverage",
     "types:worker": "wrangler types src/worker-configuration.d.ts --env-interface Env --strict-vars=false",
     "lint": "biome check .",
-    "lint:fix": "biome check --write ."
+    "lint:fix": "biome check --write .",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm exec wrangler types src/worker-configuration.d.ts --env-interface Env --strict-vars=false --check && pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry-run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",

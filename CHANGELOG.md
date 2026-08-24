@@ -6,8 +6,11 @@
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-08-24
+
 ### Added
 
+- Cloudflare Workerモジュールとして利用できる公開npmパッケージ `@kagayoi/hatena-blog-mcp`
 - はてなフォトライフの画像メタデータ取得と画像投稿を行う `get_image` / `upload_image` ツール
 - Fotolife Atom API 用の WSSE 認証と、記事へ貼り付けられる `blog_syntax` の生成
 - `update_entry` / `update_page` の `expected_edited` による取得済み版との競合検出
