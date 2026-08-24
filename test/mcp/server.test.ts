@@ -46,6 +46,6 @@ describe("createServer", () => {
 
   it("サーバ名とバージョンを公開している", () => {
     expect(SERVER_INFO.name).toBe("hatena-blog-mcp");
-    expect(SERVER_INFO.version).toBe("1.0.1");
+    expect(SERVER_INFO.version).toBe("1.0.2");
   });
 });

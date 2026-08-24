@@ -1,6 +1,6 @@
 {
   "name": "@kagayoi/hatena-blog-mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Kagayoi-maintained local stdio MCP server for Hatena Blog and Hatena Fotolife.",
   "license": "MIT",
   "author": "Keisuke Nishitani",

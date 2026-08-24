@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-25
+
 ### Fixed
 
 - AtomPubとFotolifeの上流timeoutを試行単位にし、`Retry-After` 待機が前試行のtimeoutで中断される問題を修正
