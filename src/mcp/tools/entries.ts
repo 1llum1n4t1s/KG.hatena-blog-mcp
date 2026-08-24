@@ -51,11 +51,75 @@ export function entryView(entry: Entry, includeHtml: boolean): Record<string, un
 export interface EntryPatch {
   title?: string;
   content?: string;
+  eyecatchImageUrl?: string;
   categories?: string[];
   draft?: boolean;
   preview?: boolean;
   customUrl?: string;
   touchUpdated?: boolean;
+}
+
+const AUTO_EYECATCH_START = "<!-- hatena-blog-mcp:auto-eyecatch:start -->";
+const AUTO_EYECATCH_END = "<!-- hatena-blog-mcp:auto-eyecatch:end -->";
+const AUTO_EYECATCH_BLOCK_PATTERN =
+  /^<!-- hatena-blog-mcp:auto-eyecatch:start -->\r?\n[\s\S]*?\r?\n<!-- hatena-blog-mcp:auto-eyecatch:end -->(?:\r?\n){0,2}/;
+
+function parseEyecatchImageUrl(value: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(
+      "eyecatch_image_url には認証情報を含まない http または https の画像URLを指定してください。",
+    );
+  }
+  if (
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    throw new Error(
+      "eyecatch_image_url には認証情報を含まない http または https の画像URLを指定してください。",
+    );
+  }
+  return parsed;
+}
+
+function isSupportedEyecatchImageUrl(value: string): boolean {
+  try {
+    parseEyecatchImageUrl(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+/**
+ * Add a visible lead image so Hatena can use its documented first-image
+ * fallback for the entry's eyecatch. This does not set Hatena's private
+ * eyecatch metadata. A marker pair lets a later call replace our prior block
+ * instead of accumulating duplicate lead images.
+ */
+export function applyAutoEyecatch(content: string, imageUrl: string): string {
+  const normalizedUrl = parseEyecatchImageUrl(imageUrl).href;
+  const contentWithoutPriorBlock = content.replace(AUTO_EYECATCH_BLOCK_PATTERN, "");
+  const block = `${AUTO_EYECATCH_START}\n<p><img src="${escapeHtmlAttribute(normalizedUrl)}" alt=""></p>\n${AUTO_EYECATCH_END}`;
+  const result =
+    contentWithoutPriorBlock.length === 0 ? block : `${block}\n\n${contentWithoutPriorBlock}`;
+  if (result.length > MAX_CONTENT_CHARS) {
+    throw new Error(
+      `自動アイキャッチ画像を追加すると本文が最大 ${MAX_CONTENT_CHARS} 文字を超えます。本文を短くしてください。`,
+    );
+  }
+  return result;
 }
 
 /**
@@ -70,9 +134,13 @@ export interface EntryPatch {
  * flips Markdown into plain text (or vice versa).
  */
 export function mergeEntry(existing: Entry, patch: EntryPatch): EntryWritePayload {
+  const content = patch.content ?? existing.content;
   const payload: EntryWritePayload = {
     title: patch.title ?? existing.title,
-    content: patch.content ?? existing.content,
+    content:
+      patch.eyecatchImageUrl === undefined
+        ? content
+        : applyAutoEyecatch(content, patch.eyecatchImageUrl),
     categories: patch.categories ?? existing.categories,
     control: {
       draft: patch.draft ?? existing.control.draft,
@@ -106,6 +174,16 @@ const hatenaIdOverride = z
 const contentTypeSchema = z
   .enum(["text/x-markdown", "text/x-hatena-syntax", "text/html"])
   .describe("Body syntax. Omit on create to use the blog's default.");
+const eyecatchImageUrlSchema = z
+  .string()
+  .url()
+  .max(MAX_IDENTIFIER_CHARS)
+  .refine(isSupportedEyecatchImageUrl, {
+    message: "認証情報を含まない http または https の画像URLを指定してください。",
+  })
+  .describe(
+    "本文先頭に画像を挿入し、はてなの自動アイキャッチ候補にします。公式アイキャッチ項目を直接設定する機能ではありません。",
+  );
 
 // ---------------------------------------------------------------------------
 // Handlers (exported for direct unit testing without the MCP framework)
@@ -162,6 +240,7 @@ interface CreateEntryArgs {
   title: string;
   content: string;
   content_type?: ContentType | undefined;
+  eyecatch_image_url?: string | undefined;
   categories?: string[] | undefined;
   draft?: boolean | undefined;
   preview?: boolean | undefined;
@@ -186,7 +265,10 @@ export async function createEntryHandler(
     const client = makeClient(ctx, args.blog_id, args.hatena_id);
     const payload: EntryWritePayload = {
       title: args.title,
-      content: args.content,
+      content:
+        args.eyecatch_image_url === undefined
+          ? args.content
+          : applyAutoEyecatch(args.content, args.eyecatch_image_url),
       control: {
         draft: args.draft ?? false,
         preview: args.preview ?? false,
@@ -210,6 +292,7 @@ interface UpdateEntryArgs {
   entry_id: string;
   title?: string | undefined;
   content?: string | undefined;
+  eyecatch_image_url?: string | undefined;
   categories?: string[] | undefined;
   draft?: boolean | undefined;
   preview?: boolean | undefined;
@@ -234,6 +317,9 @@ export async function updateEntryHandler(
     const patch: EntryPatch = {};
     if (args.title !== undefined) patch.title = args.title;
     if (args.content !== undefined) patch.content = args.content;
+    if (args.eyecatch_image_url !== undefined) {
+      patch.eyecatchImageUrl = args.eyecatch_image_url;
+    }
     if (args.categories !== undefined) patch.categories = args.categories;
     if (args.draft !== undefined) patch.draft = args.draft;
     if (args.preview !== undefined) patch.preview = args.preview;
@@ -319,6 +405,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
         title: z.string().min(1).max(MAX_TITLE_CHARS),
         content: z.string().max(MAX_CONTENT_CHARS),
         content_type: contentTypeSchema.optional(),
+        eyecatch_image_url: eyecatchImageUrlSchema.optional(),
         categories: z.array(z.string().max(MAX_CATEGORY_CHARS)).max(MAX_CATEGORY_COUNT).optional(),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
@@ -345,6 +432,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
         entry_id: identifier,
         title: z.string().max(MAX_TITLE_CHARS).optional(),
         content: z.string().max(MAX_CONTENT_CHARS).optional(),
+        eyecatch_image_url: eyecatchImageUrlSchema.optional(),
         categories: z
           .array(z.string().max(MAX_CATEGORY_CHARS))
           .max(MAX_CATEGORY_COUNT)

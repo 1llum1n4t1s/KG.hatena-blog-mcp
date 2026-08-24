@@ -165,7 +165,12 @@ describe("cloudflare adapter — auth", () => {
 describe("cloudflare adapter — MCP protocol", () => {
   const app = createApp();
 
-  async function initializeAndListTools(): Promise<{ tools: string[] }> {
+  async function initializeAndListTools(): Promise<{
+    tools: Array<{
+      name: string;
+      inputSchema: { properties?: Record<string, unknown> };
+    }>;
+  }> {
     // initialize first
     const initRes = await mcpCall(
       app,
@@ -187,14 +192,19 @@ describe("cloudflare adapter — MCP protocol", () => {
     const listRes = await mcpCall(app, jsonRpc("tools/list", {}, 2));
     expect(listRes.status).toBe(200);
     const listBody = (await listRes.json()) as {
-      result: { tools: Array<{ name: string }> };
+      result: {
+        tools: Array<{
+          name: string;
+          inputSchema: { properties?: Record<string, unknown> };
+        }>;
+      };
     };
-    return { tools: listBody.result.tools.map((t) => t.name) };
+    return { tools: listBody.result.tools };
   }
 
   it("initialize + tools/list exposes all 13 tools", async () => {
     const { tools } = await initializeAndListTools();
-    expect(tools.sort()).toEqual(
+    expect(tools.map((tool) => tool.name).sort()).toEqual(
       [
         "create_entry",
         "create_page",
@@ -211,6 +221,10 @@ describe("cloudflare adapter — MCP protocol", () => {
         "update_page",
       ].sort(),
     );
+    for (const toolName of ["create_entry", "update_entry"]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.properties).toHaveProperty("eyecatch_image_url");
+    }
   });
 
   it("tools/call list_entries relays the BYOK header to Hatena AtomPub", async () => {

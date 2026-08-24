@@ -127,8 +127,8 @@ Blog entry, page, and category tools take a required `blog_id` (e.g. `example.ha
 | --- | --- | --- | --- |
 | `list_entries` | List entries (7 per page) | `blog_id` | `page`, `include_html` |
 | `get_entry` | Fetch one entry | `blog_id`, `entry_id` | `include_html` |
-| `create_entry` | Post a new entry | `blog_id`, `title`, `content` | `content_type`, `categories`, `draft`, `preview`, `scheduled` (`true` requires `draft: true` + `updated`), `custom_url` |
-| `update_entry` | **Partial update** | `blog_id`, `entry_id` | `title`, `content`, `categories` (`[]` to clear), `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
+| `create_entry` | Post a new entry | `blog_id`, `title`, `content` | `content_type`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `scheduled` (`true` requires `draft: true` + `updated`), `custom_url` |
+| `update_entry` | **Partial update** | `blog_id`, `entry_id` | `title`, `content`, `eyecatch_image_url`, `categories` (`[]` to clear), `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
 | `delete_entry` | Delete an entry | `blog_id`, `entry_id` | — |
 
 `update_entry` semantics:
@@ -137,6 +137,28 @@ Blog entry, page, and category tools take a required `blog_id` (e.g. `example.ha
 - `updated` is only sent when `touch_updated: true` (default: keep the original publish date).
 - `custom_url` is only sent when you specify it (default: keep the existing slug).
 - Pass the preceding result's `edited` as `expected_edited` to reject the PUT if that fetched version is already stale. Hatena exposes no conditional PUT, so this is not an atomic guarantee across the server-side GET-to-PUT interval.
+
+#### Automatic eyecatch from a lead image
+
+Pass the optional `eyecatch_image_url` to `create_entry` or `update_entry` to insert that HTTP(S) image at the start of the article body. This uses Hatena Blog's fallback that automatically selects the first body image; it does not write Hatena's official eyecatch field. The image is also visible in the article body.
+
+```json
+{
+  "name": "create_entry",
+  "arguments": {
+    "blog_id": "example.hatenablog.com",
+    "title": "An article with an automatic eyecatch",
+    "content": "### Body\n\nThe article starts here.",
+    "content_type": "text/x-markdown",
+    "eyecatch_image_url": "https://cdn-ak.f.st-hatena.com/images/fotolife/example.png"
+  }
+}
+```
+
+- You can pass the `image_url` returned by `upload_image` directly to `eyecatch_image_url`.
+- Omitting the option leaves the body unchanged.
+- When `update_entry` omits `content`, the image is added to the existing body. If this MCP previously inserted an automatic-eyecatch block, it is replaced to avoid duplicates.
+- The 4 MiB body limit is checked after insertion.
 
 ### Pages
 

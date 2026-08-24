@@ -15,6 +15,7 @@
 - リクエスト中断シグナルと30秒の上流APIタイムアウト
 - `wrangler.jsonc` から生成する Cloudflare Workers の環境・ランタイム型
 - フォークであることを明示する README の案内
+- `create_entry` / `update_entry` で本文先頭画像による自動アイキャッチを利用する `eyecatch_image_url` オプション
 
 ### Changed
 

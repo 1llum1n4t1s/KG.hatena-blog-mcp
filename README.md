@@ -136,8 +136,8 @@ Inspector では **Streamable HTTP** を選択し、URL に `http://localhost:87
 | --- | --- | --- | --- |
 | `list_entries` | エントリ一覧 (1ページ7件) | `blog_id` | `page`, `include_html` |
 | `get_entry` | 1件取得 | `blog_id`, `entry_id` | `include_html` |
-| `create_entry` | 新規投稿 | `blog_id`, `title`, `content` | `content_type`, `categories`, `draft`, `preview`, `scheduled` (`true` には `draft: true` + `updated` が必須), `custom_url` |
-| `update_entry` | **部分更新** | `blog_id`, `entry_id` | `title`, `content`, `categories` (`[]` でクリア), `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
+| `create_entry` | 新規投稿 | `blog_id`, `title`, `content` | `content_type`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `scheduled` (`true` には `draft: true` + `updated` が必須), `custom_url` |
+| `update_entry` | **部分更新** | `blog_id`, `entry_id` | `title`, `content`, `eyecatch_image_url`, `categories` (`[]` でクリア), `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
 | `delete_entry` | 削除 | `blog_id`, `entry_id` | — |
 
 `update_entry` の仕様:
@@ -146,6 +146,28 @@ Inspector では **Streamable HTTP** を選択し、URL に `http://localhost:87
 - `updated` は `touch_updated: true` のときだけ送信されます (デフォルト: 投稿日時を維持)。
 - `custom_url` は明示指定した場合のみ送信されます (デフォルト: 既存スラッグを維持)。
 - 直前の取得結果にある `edited` を `expected_edited` に渡すと、取得済みの版から変更されていた場合は PUT せず競合エラーにします。はてな API に条件付き PUT はないため、サーバー側 GET と PUT の間まで原子的に保証するものではありません。
+
+#### 本文先頭画像による自動アイキャッチ
+
+`create_entry` または `update_entry` に任意の `eyecatch_image_url` を渡すと、その HTTP(S) 画像を本文先頭へ挿入します。はてなブログが「本文の最初の画像」を自動採用する仕組みを利用するため、編集画面の公式アイキャッチ項目を直接設定する機能ではありません。画像は記事本文にも表示されます。
+
+```json
+{
+  "name": "create_entry",
+  "arguments": {
+    "blog_id": "example.hatenablog.com",
+    "title": "自動アイキャッチ付きの記事",
+    "content": "### 本文\n\nここから記事本文です。",
+    "content_type": "text/x-markdown",
+    "eyecatch_image_url": "https://cdn-ak.f.st-hatena.com/images/fotolife/example.png"
+  }
+}
+```
+
+- `upload_image` が返す `image_url` を、そのまま `eyecatch_image_url` に渡せます。
+- オプションを省略した場合、本文は変更されません。
+- `update_entry` で本文を省略した場合は既存本文へ追加します。このMCPが以前追加した自動アイキャッチブロックがあれば、新しい画像へ置換して重複を防ぎます。
+- 挿入後の本文にも4 MiBの上限が適用されます。
 
 ### 固定ページ
 

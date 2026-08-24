@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Entry } from "../../src/atompub/types.js";
 import type { ToolContext } from "../../src/mcp/context.js";
 import {
+  applyAutoEyecatch,
   createEntryHandler,
   deleteEntryHandler,
   entryView,
@@ -13,6 +14,7 @@ import {
   mergeEntry,
   updateEntryHandler,
 } from "../../src/mcp/tools/entries.js";
+import { MAX_CONTENT_CHARS } from "../../src/utils/limits.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = resolve(here, "../fixtures");
@@ -64,6 +66,44 @@ const baseEntry: Entry = {
   customUrl: "oldslug",
 };
 
+describe("applyAutoEyecatch", () => {
+  it("本文先頭に識別済みの画像ブロックを追加する", () => {
+    const result = applyAutoEyecatch(
+      "本文",
+      "https://example.com/cover.png?width=1200&format=webp",
+    );
+
+    expect(result).toContain("<!-- hatena-blog-mcp:auto-eyecatch:start -->");
+    expect(result).toContain('src="https://example.com/cover.png?width=1200&amp;format=webp"');
+    expect(result.endsWith("本文")).toBe(true);
+  });
+
+  it("再指定時は以前追加した画像ブロックを置換する", () => {
+    const first = applyAutoEyecatch("本文", "https://example.com/first.png");
+    const second = applyAutoEyecatch(first, "https://example.com/second.png");
+
+    expect(second).not.toContain("first.png");
+    expect(second).toContain("second.png");
+    expect(second.match(/hatena-blog-mcp:auto-eyecatch:start/g)).toHaveLength(1);
+    expect(second.endsWith("本文")).toBe(true);
+  });
+
+  it("HTTP(S)以外と認証情報入りURLを拒否する", () => {
+    expect(() => applyAutoEyecatch("本文", "data:image/png;base64,AAAA")).toThrow(
+      "http または https",
+    );
+    expect(() => applyAutoEyecatch("本文", "https://user:secret@example.com/cover.png")).toThrow(
+      "認証情報を含まない",
+    );
+  });
+
+  it("画像ブロック追加後の本文上限を検証する", () => {
+    expect(() =>
+      applyAutoEyecatch("x".repeat(MAX_CONTENT_CHARS), "https://example.com/cover.png"),
+    ).toThrow("本文が最大");
+  });
+});
+
 describe("mergeEntry", () => {
   it("categoriesのみを更新しても他のフィールドは既存値を保持する (DoD)", () => {
     const payload = mergeEntry(baseEntry, { categories: ["新カテゴリ"] });
@@ -111,6 +151,16 @@ describe("mergeEntry", () => {
     expect(payload.control?.draft).toBe(true);
     expect(payload.control?.preview).toBe(false);
     expect(payload.control?.scheduled).toBe(false);
+  });
+
+  it("eyecatchImageUrl だけでも既存本文へ先頭画像を追加する", () => {
+    const payload = mergeEntry(baseEntry, {
+      eyecatchImageUrl: "https://example.com/cover.png",
+    });
+
+    expect(payload.content).toContain("hatena-blog-mcp:auto-eyecatch:start");
+    expect(payload.content).toContain("https://example.com/cover.png");
+    expect(payload.content).toContain("元本文");
   });
 });
 
@@ -229,6 +279,26 @@ describe("createEntryHandler", () => {
     expect(res.isError).toBeUndefined();
     expect(calls[0]?.method).toBe("POST");
     expect(calls[0]?.body).toContain("<title>新規</title>");
+    expect(calls[0]?.body).not.toContain("hatena-blog-mcp:auto-eyecatch");
+  });
+
+  it("eyecatch_image_url 指定時だけ本文先頭画像をPOSTする", async () => {
+    const { ctx, calls } = makeCtx([
+      new Response(readFixture("entry-single.xml"), { status: 201 }),
+    ]);
+    const res = await createEntryHandler(
+      {
+        blog_id: "example_user.hatenablog.com",
+        title: "自動アイキャッチ付き",
+        content: "body",
+        eyecatch_image_url: "https://example.com/cover.png",
+      },
+      ctx,
+    );
+
+    expect(res.isError).toBeUndefined();
+    expect(calls[0]?.body).toContain("hatena-blog-mcp:auto-eyecatch:start");
+    expect(calls[0]?.body).toContain("https://example.com/cover.png");
   });
 });
 
@@ -257,6 +327,29 @@ describe("updateEntryHandler", () => {
     // 部分更新は updated を送らない
     expect(body).not.toContain("<updated>");
     // content_type は既存値を保持
+    expect(body).toContain('type="text/x-markdown"');
+    expect(body).not.toContain("hatena-blog-mcp:auto-eyecatch");
+  });
+
+  it("eyecatch_image_url だけを指定して既存本文へ先頭画像を追加する", async () => {
+    const { ctx, calls } = makeCtx([
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+    ]);
+    const res = await updateEntryHandler(
+      {
+        blog_id: "example_user.hatenablog.com",
+        entry_id: "3000000000000000010",
+        eyecatch_image_url: "https://example.com/updated-cover.png",
+      },
+      ctx,
+    );
+
+    expect(res.isError).toBeUndefined();
+    const body = calls[1]?.body ?? "";
+    expect(body).toContain("hatena-blog-mcp:auto-eyecatch:start");
+    expect(body).toContain("https://example.com/updated-cover.png");
+    expect(body).toContain("Cloudflare Workers");
     expect(body).toContain('type="text/x-markdown"');
   });
 
