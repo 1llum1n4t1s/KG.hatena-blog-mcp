@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import worker, { createApp } from "../src/index.js";
+import {
+  createBasicCredentials,
+  createServer,
+  createStdioServer,
+  SERVER_INFO,
+} from "../src/index.js";
 
 describe("npm package entry", () => {
-  it("Cloudflare Workers用のdefault exportとfactoryを公開する", () => {
-    expect(typeof worker.fetch).toBe("function");
-    expect(typeof createApp().fetch).toBe("function");
+  it("Node stdioサーバー用の公開APIを提供する", () => {
+    expect(SERVER_INFO.name).toBe("hatena-blog-mcp");
+    expect(typeof createServer).toBe("function");
+    expect(typeof createStdioServer).toBe("function");
+    expect(typeof createBasicCredentials).toBe("function");
   });
 });

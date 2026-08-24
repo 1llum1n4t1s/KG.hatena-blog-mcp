@@ -1,7 +1,7 @@
 {
   "name": "@kagayoi/hatena-blog-mcp",
   "version": "1.0.0",
-  "description": "Kagayoi-maintained Hatena Blog and Fotolife MCP server for Cloudflare Workers with BYOK.",
+  "description": "Kagayoi-maintained local stdio MCP server for Hatena Blog and Hatena Fotolife.",
   "license": "MIT",
   "author": "Keisuke Nishitani",
   "repository": {
@@ -17,21 +17,28 @@
     "model-context-protocol",
     "hatena-blog",
     "hatena-fotolife",
-    "cloudflare-workers",
+    "stdio",
+    "local",
     "atompub"
   ],
   "type": "module",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "hatena-blog-mcp": "dist/cli.js"
+  },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "files": [
-    "src",
-    "wrangler.jsonc",
-    "tsconfig.json",
+    "dist",
     "README.en.md",
     "CHANGELOG.md",
-    "DESIGN.md"
+    "DESIGN.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
@@ -42,31 +49,30 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "build": "tsc --noEmit",
+    "dev": "pnpm build && node dist/cli.js",
+    "start": "node dist/cli.js",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "types:worker": "wrangler types src/worker-configuration.d.ts --env-interface Env --strict-vars=false",
+    "test:stdio": "pnpm build && node scripts/smoke-stdio.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm exec wrangler types src/worker-configuration.d.ts --env-interface Env --strict-vars=false --check && pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry-run"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:stdio",
+    "prepack": "pnpm build",
+    "prepublishOnly": "pnpm verify"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
     "fast-xml-parser": "^5.2.0",
-    "hono": "^4.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.0",
-    "@cloudflare/workers-types": "^4.20250409.0",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^3.2.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0",
-    "wrangler": "^4.12.0"
+    "vitest": "^3.2.0"
   }
 }

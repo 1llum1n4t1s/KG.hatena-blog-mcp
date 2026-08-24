@@ -170,7 +170,7 @@ const hatenaIdOverride = z
   .min(1)
   .max(MAX_IDENTIFIER_CHARS)
   .optional()
-  .describe("Override the Hatena ID derived from the Authorization header");
+  .describe("Override the Hatena ID supplied through HATENA_ID");
 const contentTypeSchema = z
   .enum(["text/x-markdown", "text/x-hatena-syntax", "text/html"])
   .describe("Body syntax. Omit on create to use the blog's default.");

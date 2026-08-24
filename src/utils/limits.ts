@@ -1,4 +1,3 @@
-export const MAX_MCP_REQUEST_BYTES = 16 * 1024 * 1024;
 export const MAX_TITLE_CHARS = 1024;
 export const MAX_CONTENT_CHARS = 4 * 1024 * 1024;
 export const MAX_IDENTIFIER_CHARS = 2048;

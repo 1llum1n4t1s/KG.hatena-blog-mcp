@@ -39,7 +39,7 @@ export function registerCategoryTools(server: McpServer, ctx: ToolContext): void
           .min(1)
           .max(MAX_IDENTIFIER_CHARS)
           .optional()
-          .describe("Override the Hatena ID derived from the Authorization header"),
+          .describe("Override the Hatena ID supplied through HATENA_ID"),
       },
       annotations: { readOnlyHint: true },
     },

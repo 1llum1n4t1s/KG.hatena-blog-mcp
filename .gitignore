@@ -6,12 +6,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Wrangler / Cloudflare
-.wrangler/
-.dev.vars
-.dev.vars.*
-wrangler.toml.bak
-
 # Test / coverage
 coverage/
 .nyc_output/

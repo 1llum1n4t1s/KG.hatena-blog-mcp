@@ -5,199 +5,86 @@
 [![npm version](https://img.shields.io/npm/v/@kagayoi/hatena-blog-mcp)](https://www.npmjs.com/package/@kagayoi/hatena-blog-mcp)
 
 > [!IMPORTANT]
-> このリポジトリは [Keisuke69/hatena-blog-mcp](https://github.com/Keisuke69/hatena-blog-mcp) をフォークし、独自に保守している非公式の派生版です。はてなフォトライフ対応、更新競合の検出、入力・レスポンス上限、Cloudflare Workers 向けの堅牢化など、フォーク固有の変更を含みます。これらの変更に関する Issue は[このフォーク](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/issues)へ報告してください。変更内容は [CHANGELOG.md](./CHANGELOG.md) にまとめています。
+> このリポジトリは [Keisuke69/hatena-blog-mcp](https://github.com/Keisuke69/hatena-blog-mcp) をフォークし、独自に保守している非公式の派生版です。はてなフォトライフ対応、更新競合の検出、入力・レスポンス上限、ローカルstdio対応など、フォーク固有の変更を含みます。これらの変更に関するIssueは[このフォーク](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/issues)へ報告してください。変更内容は [CHANGELOG.md](./CHANGELOG.md) にまとめています。
 
-[はてなブログ AtomPub API](https://developer.hatena.ne.jp/ja/documents/blog/apis/atom) と [はてなフォトライフ AtomAPI](https://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom/) を **読み書き両対応** でラップした MCP (Model Context Protocol) サーバーです。**Cloudflare Workers** 上で動かすことを想定し、**BYOK (Bring Your Own Key)** モデルを採用しています。
-
-もともとのユースケースは「Claude にブログ全記事のカテゴリを一括で付け替えてもらう」こと。タイトル・本文・投稿日時を誤って書き換えずに、カテゴリだけを安全に更新できるように設計されています。
+[はてなブログ AtomPub API](https://developer.hatena.ne.jp/ja/documents/blog/apis/atom) と [はてなフォトライフ Atom API](https://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom/) を読み書きする、ローカル実行型のMCP (Model Context Protocol) サーバーです。Node.js上でstdio通信し、外部のMCPホスティングや中継サービスは必要ありません。
 
 ## 特徴
 
-- エントリ: `list_entries`, `get_entry`, `create_entry`, `update_entry`, `delete_entry`
-- 固定ページ: `list_pages`, `get_page`, `create_page`, `update_page`, `delete_page`
-- カテゴリ: `list_categories`
-- 画像: `get_image`, `upload_image`
-- **安全な部分更新**: `update_entry` / `update_page` は、明示的に変更しない限り既存のタイトル・本文・記法・投稿日時・スラッグを維持します。本文の `content_type` は常に既存エントリの値を使うため、Markdown がプレーンテキストに黙って切り替わることもありません。
-- サーバー側に一切の状態を持たない — 認証情報はリクエストごとの `Authorization` ヘッダにのみ存在します。
+- エントリ、固定ページ、カテゴリ、フォトライフ画像を扱う全13ツール
+- `update_entry` / `update_page` の安全な部分更新と `expected_edited` による競合検出
+- `eyecatch_image_url` を使った本文先頭画像による自動アイキャッチ
+- POSTを自動再試行せず、記事や画像の重複作成を防止
+- XML、本文、カテゴリ、画像、エラーボディに上限を設けた防御的な実装
+- 認証情報をコマンドライン引数へ置かず、ローカルプロセスの環境変数からのみ取得
 
-## トランスポート
-
-- **MCP Streamable HTTP のみ** (`POST /mcp`、JSON レスポンスモード)
-- stdio は非対応 — stdio しか喋れないクライアントでは [`mcp-remote`](https://github.com/geelen/mcp-remote) を介してください
-- SSE は非対応
-
-## エンドポイント
-
-| メソッド | パス | 用途 |
-| --- | --- | --- |
-| `POST` | `/mcp` | MCP Streamable HTTP のエントリポイント |
-| `OPTIONS` | `/mcp` | CORS プリフライト |
-| `GET` | `/` | ヘルスチェック / サーバー情報の JSON |
-
----
-
-## クイックスタート: Cloudflare Workers へのデプロイ
+## クイックスタート
 
 ### 前提条件
 
-- Node.js 22 以上
-- Cloudflare アカウントと、Workers をデプロイできる権限
+- Node.js 22以上
+- はてなID
+- はてなブログの「設定 → 詳細設定 → AtomPub」に表示されるAPIキー
 
-### npmパッケージから利用する
-
-```sh
-mkdir my-hatena-blog-mcp
-cd my-hatena-blog-mcp
-npm init -y
-npm install @kagayoi/hatena-blog-mcp
-npm install --save-dev wrangler
-```
-
-`src/index.ts` を作成し、パッケージのWorkerを再exportします。
-
-```ts
-export { default } from "@kagayoi/hatena-blog-mcp";
-```
-
-`wrangler.jsonc` には利用者自身のWorker名と設定を記載します。
+stdio対応MCPクライアントへ次のように登録します。
 
 ```jsonc
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "my-hatena-blog-mcp",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-08-24",
-  "compatibility_flags": ["nodejs_compat", "enable_request_signal", "request_signal_passthrough"],
-  "vars": {
-    "ALLOWED_ORIGINS": ""
-  },
-  "observability": {
-    "enabled": true
-  }
-}
-```
-
-```sh
-npx wrangler login
-npx wrangler deploy
-```
-
-npmパッケージはCloudflare Workers用のモジュールです。`npx @kagayoi/hatena-blog-mcp` で起動するstdioサーバーではありません。
-
-### ソースリポジトリから利用する
-
-この方法では pnpm 10 以上を使用します。
-
-```sh
-git clone https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git
-cd KG.hatena-blog-mcp
-pnpm install
-pnpm exec wrangler login
-pnpm exec wrangler deploy
-```
-
-以上です。シークレットも KV も Durable Objects も不要 — 認証情報はクライアントがリクエストごとに渡します。URL は `https://hatena-blog-mcp.<あなたのサブドメイン>.workers.dev` のような形になります。
-
-### オプションの Wrangler 変数
-
-| 変数 | デフォルト | 説明 |
-| --- | --- | --- |
-| `ALLOWED_ORIGINS` | 空文字 → `*` | カンマ区切りの CORS 許可オリジンリスト (例: `https://claude.ai,https://chatgpt.com`)。値を設定すると、リスト外の明示的な `Origin` を preflight を含め 403 で拒否します。空文字は幅広い MCP クライアントとの互換性を保つ既定値です。 |
-
-`wrangler.jsonc` の `vars` を編集してから通常どおり deploy してください。コマンドラインだけの `--var` は、次回の通常 deploy で消えるため使いません。
-
-```jsonc
-"vars": {
-  "ALLOWED_ORIGINS": "https://claude.ai,https://chatgpt.com"
-}
-```
-
----
-
-## 認証 (BYOK)
-
-このサーバーは **認証情報を一切保存しません**。各リクエストには以下を必ず含めてください:
-
-```
-Authorization: Basic base64(hatena_id:api_key)
-```
-
-API キーは **はてなブログ → 設定 → 詳細設定 → AtomPub** から取得できます。`hatena_id` はブログ URL の左側部分 (`<hatena_id>.hatenablog.com`) です。
-
-同じ Worker を複数人で共有して、それぞれが自分の API キーを使うこともできます。
-
----
-
-## クライアント設定
-
-### Claude Desktop / Claude.ai Web / モバイル (ネイティブのリモート MCP)
-
-新しいリモート MCP サーバーを追加して、Worker の URL を指定します:
-
-- **URL**: `https://hatena-blog-mcp.<あなたのサブドメイン>.workers.dev/mcp`
-- **Auth**: Basic 認証、ユーザー名 = はてなID、パスワード = AtomPub API キー
-
-### Claude Code (または stdio しか話せないクライアント) を `mcp-remote` 経由で
-
-`mcp-remote` はローカルで stdio ↔ Streamable HTTP をブリッジします:
-
-```jsonc
-// ~/.claude.json または各クライアントの設定ファイル
 {
   "mcpServers": {
     "hatena-blog": {
       "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://hatena-blog-mcp.<あなたのサブドメイン>.workers.dev/mcp",
-        "--header",
-        "Authorization: Basic ${BASIC_AUTH}"
-      ],
+      "args": ["--yes", "@kagayoi/hatena-blog-mcp@latest"],
       "env": {
-        "BASIC_AUTH": "<base64(hatena_id:api_key)>"
+        "HATENA_ID": "your-hatena-id",
+        "HATENA_API_KEY": "your-atompub-api-key"
       }
     }
   }
 }
 ```
 
-Base64 値は `printf '%s' 'hatena_id:api_key' | base64` で生成します。
+Windowsでクライアントが `npx` を見つけられない場合は、`command` を `npx.cmd` にします。認証情報の設定方法はクライアントごとに異なるため、利用できる場合はクライアントやOSのシークレット管理機能を優先してください。
 
-### MCP Inspector (手動での動作確認用)
+### 最新版の取得
+
+`@latest` を指定すると、MCPプロセスの起動時にnpmの `latest` dist-tagを解決します。MCP自身が実行中にファイルを書き換えたり、独自の更新サーバーへ問い合わせたりはしません。再現性を優先する場合は、`latest` を実際に利用するリリースversionへ置き換えて固定できます。
+
+### ソースから起動
 
 ```sh
-pnpm exec wrangler dev  # 別ターミナルで起動
-npx @modelcontextprotocol/inspector
+git clone https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git
+cd KG.hatena-blog-mcp
+pnpm install --frozen-lockfile
+pnpm build
 ```
 
-Inspector では **Streamable HTTP** を選択し、URL に `http://localhost:8787/mcp`、カスタムヘッダに `Authorization: Basic <base64>` を設定します。
+クライアント設定では `command` を `node`、`args` をclone先の `dist/cli.js` の絶対パスにし、同じ2つの環境変数を渡します。
 
----
+## 認証とデータフロー
+
+起動時に `HATENA_ID` と `HATENA_API_KEY` からBasic認証ヘッダをメモリ上で生成し、AtomPub APIへ送ります。フォトライフでは同じ認証情報からリクエストごとにWSSEヘッダを生成します。認証情報、記事、画像をディスクへ保存する機能はありません。
+
+`blog_id` はブログのドメイン名です。例: `example.hatenablog.com`、`example.hateblo.jp`。グループブログでは各ツールの任意引数 `hatena_id` でURL上のはてなIDだけを上書きできます。
 
 ## ツールリファレンス
-
-ブログ・固定ページ・カテゴリのツールは必須引数として `blog_id` (例: `example.hatenablog.com`) を取り、任意で `hatena_id` を指定できます (`Authorization` ヘッダのユーザー名を上書き — グループブログで便利)。画像ツールは認証ヘッダのはてなIDに紐づくフォトライフを操作するため `blog_id` は不要です。
 
 ### エントリ
 
 | 名前 | 用途 | 必須 | 主なオプション |
 | --- | --- | --- | --- |
-| `list_entries` | エントリ一覧 (1ページ7件) | `blog_id` | `page`, `include_html` |
-| `get_entry` | 1件取得 | `blog_id`, `entry_id` | `include_html` |
-| `create_entry` | 新規投稿 | `blog_id`, `title`, `content` | `content_type`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `scheduled` (`true` には `draft: true` + `updated` が必須), `custom_url` |
-| `update_entry` | **部分更新** | `blog_id`, `entry_id` | `title`, `content`, `eyecatch_image_url`, `categories` (`[]` でクリア), `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
-| `delete_entry` | 削除 | `blog_id`, `entry_id` | — |
+| `list_entries` | エントリ一覧（1ページ7件） | `blog_id` | `hatena_id`, `page`, `include_html` |
+| `get_entry` | エントリを1件取得 | `blog_id`, `entry_id` | `hatena_id`, `include_html` |
+| `create_entry` | 新規投稿 | `blog_id`, `title`, `content` | `content_type`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `scheduled`, `updated`, `custom_url` |
+| `update_entry` | 既存エントリを部分更新 | `blog_id`, `entry_id` | `title`, `content`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
+| `delete_entry` | エントリを削除 | `blog_id`, `entry_id` | `hatena_id` |
 
-`update_entry` の仕様:
-- 省略したフィールドは既存エントリの値を維持します。
-- `content_type` は **常に** 既存エントリから取得 — このツール経由で Markdown ↔ プレーンテキストを切り替えることはできません。
-- `updated` は `touch_updated: true` のときだけ送信されます (デフォルト: 投稿日時を維持)。
-- `custom_url` は明示指定した場合のみ送信されます (デフォルト: 既存スラッグを維持)。
-- 直前の取得結果にある `edited` を `expected_edited` に渡すと、取得済みの版から変更されていた場合は PUT せず競合エラーにします。はてな API に条件付き PUT はないため、サーバー側 GET と PUT の間まで原子的に保証するものではありません。
+`update_entry` は現在値を取得してから指定値をマージします。未指定のタイトル、本文、記法、公開状態、カテゴリ、投稿日時、スラッグは維持されます。カテゴリだけを消す場合は `categories: []` を渡します。`expected_edited` が現在値と異なる場合はPUTせず、競合エラーにします。
+
+`scheduled: true` の新規投稿には `draft: true` と公開日時 `updated` の両方が必要です。更新時に投稿日時を変更するのは `touch_updated: true` を指定した場合だけです。
 
 #### 本文先頭画像による自動アイキャッチ
 
-`create_entry` または `update_entry` に任意の `eyecatch_image_url` を渡すと、その HTTP(S) 画像を本文先頭へ挿入します。はてなブログが「本文の最初の画像」を自動採用する仕組みを利用するため、編集画面の公式アイキャッチ項目を直接設定する機能ではありません。画像は記事本文にも表示されます。
+`create_entry` または `update_entry` に `eyecatch_image_url` を指定すると、そのHTTP(S)画像を識別用コメント付きのHTMLブロックとして本文先頭へ挿入します。はてなブログが本文中の最初の画像を自動採用する仕組みを利用するもので、編集画面の公式アイキャッチ項目を直接設定する機能ではありません。画像は記事本文にも表示されます。
 
 ```json
 {
@@ -212,106 +99,58 @@ Inspector では **Streamable HTTP** を選択し、URL に `http://localhost:87
 }
 ```
 
-- `upload_image` が返す `image_url` を、そのまま `eyecatch_image_url` に渡せます。
-- オプションを省略した場合、本文は変更されません。
-- `update_entry` で本文を省略した場合は既存本文へ追加します。このMCPが以前追加した自動アイキャッチブロックがあれば、新しい画像へ置換して重複を防ぎます。
-- 挿入後の本文にも4 MiBの上限が適用されます。
+- `upload_image` が返す `image_url` をそのまま利用できます。
+- 省略した場合は本文を変更しません。
+- 再指定時は、このMCPが以前追加したブロックを置換して重複を防ぎます。
+- `update_entry` で本文を省略した場合は既存本文へ適用します。
 
 ### 固定ページ
 
-エントリとほぼ同じ形ですが、`categories` と `scheduled` はありません。`create_page` では `custom_url` が必須です (はてなはこれをページの恒久的なスラッグとして扱います)。`update_page` でも `expected_edited` を競合検出に利用できます。
+| 名前 | 用途 | 必須 | 主なオプション |
+| --- | --- | --- | --- |
+| `list_pages` | 固定ページ一覧（1ページ10件） | `blog_id` | `hatena_id`, `page`, `include_html` |
+| `get_page` | 固定ページを1件取得 | `blog_id`, `page_id` | `hatena_id`, `include_html` |
+| `create_page` | 固定ページを作成 | `blog_id`, `title`, `content`, `custom_url` | `content_type`, `draft`, `preview`, `updated` |
+| `update_page` | 固定ページを部分更新 | `blog_id`, `page_id` | `title`, `content`, `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
+| `delete_page` | 固定ページを削除 | `blog_id`, `page_id` | `hatena_id` |
 
-### カテゴリ
-
-- `list_categories` → `{ categories: string[], fixed: boolean }`。`fixed: true` の場合、このブログでは新しいカテゴリを追加できません。
-
-### 画像 (はてなフォトライフ)
+### カテゴリと画像
 
 | 名前 | 用途 | 必須 | 主なオプション |
 | --- | --- | --- | --- |
-| `get_image` | 画像メタデータを1件取得 | `image_id` | — |
-| `upload_image` | 画像を投稿し、記事用 `blog_syntax` を取得 | `title`, `content_type`, `data_base64` | `folder` (既定: `Hatena Blog`) |
+| `list_categories` | カテゴリ一覧と固定状態を取得 | `blog_id` | `hatena_id` |
+| `get_image` | フォトライフ画像メタデータを取得 | `image_id` | — |
+| `upload_image` | 画像を投稿し、記事用記法とURLを返す | `title`, `content_type`, `data_base64` | `folder`（既定: `Hatena Blog`） |
 
-画像操作の認証は、リクエストの Basic 認証情報からリクエストごとに WSSE を生成します。APIキーをサーバーへ保存しません。重複投稿を避けるため `upload_image` の POST は自動リトライしません。
+フォトライフ公式feedはブログ編集画面から投稿した非公開「Hatena Blog」フォルダを列挙しないため、画像一覧ツールは提供していません。
 
-画像はデコード後 10 MiB までです。MCP リクエストは 16 MiB、はてなから受け取る XML は 8 MiB、エラーボディは 16 KiB に制限しています。
+## 上限と再試行
 
-フォトライフ公式feedはブログ編集画面から投稿した非公開「Hatena Blog」フォルダを列挙しないため、一覧ツールは提供しません。記事本文のfotolife記法から画像IDを取得し、`get_image` で確認してください。
+- はてなから受け取るXML: 8 MiB
+- エラーボディ: 16 KiB
+- 記事本文: 4 MiB
+- デコード後の画像: 10 MiB
+- カテゴリ: 100件、各256文字
+- 上流API timeout: 30秒
+- 自動再試行: GET / PUT / DELETEなどの冪等メソッドのみ。POSTは再試行しません。
 
----
-
-## 使用例: カテゴリの一括付け替え (本プロジェクトの原点)
-
-MCP サーバーを接続したら、Claude に次のように頼むだけです:
-
-> 「私のブログ `example.hatenablog.com` の全エントリを `list_entries` で列挙して、各エントリの本文を読んだうえで既存カテゴリを整理し直してください。タイトル・本文・投稿日時は絶対に変更しないでください。」
-
-`update_entry` は既存値を取得してからマージするため、Claude は更新対象と直前に確認した `edited` を次のように渡せます:
-
-```json
-{
-  "name": "update_entry",
-  "arguments": {
-    "blog_id": "example.hatenablog.com",
-    "entry_id": "3000000000000000010",
-    "expected_edited": "2026-04-18T10:15:00+09:00",
-    "categories": ["技術", "TypeScript", "Cloudflare"]
-  }
-}
-```
-
-…本文を書き換えたり、Markdown をプレーンテキストに切り替えたり、投稿日時を今日にずらしたりすることなく。
-
----
-
-## 開発
+## 開発と検証
 
 ```sh
-pnpm install
-pnpm dev                  # wrangler dev を http://localhost:8787 で起動
-pnpm test                 # vitest
-pnpm test:coverage        # 全体60%、xml.ts 90%、entries.ts 90% (branch 75%) 以上
-pnpm lint                 # biome check
-pnpm lint:fix             # biome check --write
-pnpm typecheck            # tsc --noEmit
-pnpm types:worker         # wrangler.jsonc から Worker 型を再生成
-pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry-run  # バンドル確認
+pnpm install --frozen-lockfile
+pnpm verify
+npm pack --dry-run --json
 ```
 
-### ディレクトリ構成
+`pnpm verify` はBiome、TypeScript、coverage付きVitest、build済みCLIへのstdio接続を実行します。詳しい構造と不変条件は [DESIGN.md](./DESIGN.md) を参照してください。
 
-```
-src/
-  atompub/     — はてな AtomPub API のステートレス HTTP クライアント
-  fotolife/    — WSSE 認証 + はてなフォトライフ AtomAPI クライアント
-  mcp/
-    tools/     — entries.ts, pages.ts, categories.ts, images.ts (ツール群別ファイル)
-    server.ts  — createServer() で 13 個のツールを新規 McpServer に登録
-    context.ts — リクエストごとの認証情報 + クライアント生成
-    response.ts — ToolTextResult、日本語エラー、秘密を除いた構造化ログ
-  adapters/cloudflare/
-    index.ts   — Hono アプリ: CORS → BYOK 認証 → Streamable HTTP トランスポート
-  utils/
-    auth.ts    — parseBasicAuth
-    body.ts    — リクエスト/レスポンスボディのサイズ制限
-    retry.ts   — 冪等メソッド限定の指数バックオフ + jitter、Retry-After を尊重
-test/
-  fixtures/    — 実 AtomPub レスポンスのサンプル
-  ...
-```
+## セキュリティ
 
----
+- MCPクライアント設定やラッパーを第三者と共有するときは、環境変数の値を除去してください。
+- ログにはAuthorization、APIキー、上流レスポンス本文、任意の例外メッセージを出しません。
+- APIキーが漏れた場合は、はてなブログのAtomPub設定から再発行してください。
+- 公開HTTPサーバーではなくローカルstdioプロセスですが、同じユーザー権限で動く他プロセスからの環境・設定ファイルの読み取りにはOS側の保護が必要です。
 
-## セキュリティに関する注意
+## License
 
-- **このサーバーは `Authorization` をそのまま中継します。** 認証情報はヘッダからデコードされて Worker に届き、各 AtomPub 呼び出しではてな側へ流れます。永続ストレージには書きませんが、それでも信頼できる場所にホストしてください。悪意ある、あるいは乗っ取られた Worker を経由すれば、通過するすべてのキーがログや悪用の対象になり得ます。
-- **ログは認証情報・エラーメッセージ・レスポンスボディを意図的に除いています。** `console.*` には操作名、リクエストID、ステータスコード、エラーカテゴリ/型だけを残します。ログを追加するときもこの方針を守ってください。
-- **CORS は互換性のためデフォルトで全開放です。** 認証はクッキーではなく `Authorization` で行い、`Access-Control-Allow-Credentials` は付けません。ブラウザクライアントを限定できる環境では `ALLOWED_ORIGINS` の設定を推奨します。設定時はリスト外の明示的な `Origin` を 403 で拒否します。`Origin` のない非ブラウザ要求は許可し、`Host` は別途制限しないため、必要なら前段プロキシでも制約してください。
-- **レート制限と濫用対策。** URL を知っている人なら誰でも叩ける公開デプロイは負荷にさらされ得ます。Cloudflare の無料プランにもグローバルな制限はありますが、必要に応じて Wrangler の `[limits]` ブロックや WAF のレート制限ルールを検討してください。
-- **API キーが漏洩したら**、*はてなブログ → 設定 → 詳細設定 → AtomPub* から失効・再発行してください。本サーバー側でクリアするものは何もありません。
-
----
-
-## ライセンス
-
-MIT。フォーク元の著作権表示を含む全文は [LICENSE](./LICENSE) を参照してください。
+MIT © Keisuke Nishitani

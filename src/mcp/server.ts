@@ -8,7 +8,7 @@ import { registerPageTools } from "./tools/pages.js";
 /**
  * Server metadata reported via the MCP `initialize` handshake.
  *
- * Kept as a constant so the Workers adapter and any future test harnesses
+ * Kept as a constant so the stdio adapter and test harnesses
  * see the same name/version without having to repeat string literals.
  */
 export const SERVER_INFO = {
@@ -17,12 +17,11 @@ export const SERVER_INFO = {
 } as const;
 
 /**
- * Build a fresh {@link McpServer} scoped to one request's credentials.
+ * Build a fresh {@link McpServer} scoped to the supplied credentials.
  *
- * We deliberately instantiate a new server per request rather than holding
- * a long-lived singleton: tool handlers close over `ctx.credentials`, and
- * the BYOK model means every request brings its own Authorization header.
- * Re-using a server across requests would leak credentials between callers.
+ * Tool handlers close over `ctx.credentials`. The stdio adapter creates one
+ * server per local process, so clients that use different Hatena accounts
+ * must start separate processes rather than sharing one credential context.
  */
 export function createServer(ctx: ToolContext): McpServer {
   const server = new McpServer(SERVER_INFO, {

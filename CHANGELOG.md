@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **破壊的変更:** npmパッケージの実行方式をCloudflare Workerモジュールからローカルstdio CLIへ変更。既存利用者はWorker URLと `mcp-remote` を外し、`npx --yes @kagayoi/hatena-blog-mcp@latest` と `HATENA_ID` / `HATENA_API_KEY` をMCPクライアントへ設定してください
+- npmパッケージをTypeScriptソースではなく、型宣言を含む `dist/` の実行可能成果物として配布
+- MCPクライアントの推奨設定を `npx --yes @kagayoi/hatena-blog-mcp@latest` に変更
+
+### Added
+
+- Node.js 22以上で動作するローカルMCP stdio CLIと `hatena-blog-mcp` コマンド
+- `HATENA_ID` / `HATENA_API_KEY` 環境変数から上流API用のBasic認証を生成する起動処理
+- 配布用CLIを実プロセスとして起動し、13ツールとアイキャッチ入力schemaを確認するstdio smoke test
+
+### Removed
+
+- Cloudflare Workers / Hono / MCP Streamable HTTPアダプターとWrangler設定・生成型・依存関係
+- ローカル利用時の `mcp-remote` ブリッジ要件
+
 ## [1.0.0] - 2026-08-24
 
 ### Changed
