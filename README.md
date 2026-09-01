@@ -80,7 +80,7 @@ pnpm build
 
 `update_entry` は現在値を取得してから指定値をマージします。未指定のタイトル、本文、記法、公開状態、カテゴリ、投稿日時、スラッグは維持されます。カテゴリだけを消す場合は `categories: []` を渡します。`expected_edited` が現在値と異なる場合はPUTせず、競合エラーにします。
 
-`scheduled: true` の新規投稿には `draft: true` と公開日時 `updated` の両方が必要です。更新時に投稿日時を変更するのは `touch_updated: true` を指定した場合だけです。
+`scheduled: true` の新規投稿には `draft: true` と公開日時 `updated` の両方が必要です。HatenaのGETレスポンスに `scheduled` がない場合は結果と更新XMLでも省略し、予約なしを示す `false` を補いません。更新時に投稿日時を変更するのは `touch_updated: true` を指定した場合だけです。
 
 #### 本文先頭画像による自動アイキャッチ
 

@@ -11,7 +11,7 @@ export interface EntryControl {
   draft: boolean;
   preview: boolean;
   /** Only meaningful for entries (not for pages). */
-  scheduled: boolean;
+  scheduled?: boolean;
 }
 
 export interface Entry {

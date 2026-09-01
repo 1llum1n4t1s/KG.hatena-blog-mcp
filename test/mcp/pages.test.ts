@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
 import type { Page } from "../../src/atompub/types.js";
 import type { ToolContext } from "../../src/mcp/context.js";
@@ -11,6 +12,7 @@ import {
   listPagesHandler,
   mergePage,
   pageView,
+  registerPageTools,
   updatePageHandler,
 } from "../../src/mcp/tools/pages.js";
 
@@ -194,5 +196,31 @@ describe("deletePageHandler", () => {
     );
     expect(res.isError).toBeUndefined();
     expect(calls[0]?.method).toBe("DELETE");
+  });
+});
+
+describe("registerPageTools", () => {
+  it("update_pageは空タイトルと空custom_urlを拒否し、空本文は許可する", () => {
+    type StringSchema = { safeParse(value: unknown): { success: boolean } };
+    type ToolDefinition = {
+      inputSchema?: {
+        title?: StringSchema;
+        content?: StringSchema;
+        custom_url?: StringSchema;
+      };
+    };
+    const definitions = new Map<string, ToolDefinition>();
+    const server = {
+      registerTool(name: string, definition: ToolDefinition) {
+        definitions.set(name, definition);
+      },
+    } as unknown as McpServer;
+
+    registerPageTools(server, makeCtx([]).ctx);
+
+    const updateSchema = definitions.get("update_page")?.inputSchema;
+    expect(updateSchema?.title?.safeParse("").success).toBe(false);
+    expect(updateSchema?.custom_url?.safeParse("").success).toBe(false);
+    expect(updateSchema?.content?.safeParse("").success).toBe(true);
   });
 });

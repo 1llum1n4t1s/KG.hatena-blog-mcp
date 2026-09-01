@@ -73,7 +73,7 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 - `custom_url` は呼び出し側が明示したときだけ送る。
 - `expected_edited` が指定され、GETした現在値と異なる場合はPUTしない。
 - `expected_edited` はGET後からPUTまでを原子的に保護しない。上流APIに条件付きPUTがないため、この競合窓は残る。
-- エントリの既存 `scheduled` はマージ時に維持する。新規投稿の `scheduled=true` には `draft=true` と `updated` を必須とする。
+- エントリの `scheduled` はGETレスポンスに存在するときだけマージし、欠落を `false` とみなしてPUTへ送らない。新規投稿の `scheduled=true` には `draft=true` と `updated` を必須とする。
 - 新規固定ページの `updated` は任意指定でき、省略時の公開日時ははてな側に委ねる。
 - `eyecatch_image_url` を明示した場合だけ、HTTP(S)画像を識別用コメント付きHTMLブロックとして本文先頭へ挿入する。これは本文の最初の画像による自動選択を利用し、公式アイキャッチ項目は変更しない。再指定時は既存の自動挿入ブロックを置換する。
 

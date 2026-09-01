@@ -79,6 +79,23 @@ describe("parseFeed", () => {
   });
 });
 
+describe("parseEntry — optional scheduled control", () => {
+  const xml = readFixture("entry-single.xml");
+
+  it("scheduled要素がない場合はfalseを補わない", () => {
+    const withoutScheduled = xml.replace("<hatenablog:scheduled>no</hatenablog:scheduled>", "");
+    expect(parseEntry(withoutScheduled).control.scheduled).toBeUndefined();
+  });
+
+  it("scheduled=yesがある場合は予約状態を保持する", () => {
+    const scheduled = xml.replace(
+      "<hatenablog:scheduled>no</hatenablog:scheduled>",
+      "<hatenablog:scheduled>yes</hatenablog:scheduled>",
+    );
+    expect(parseEntry(scheduled).control.scheduled).toBe(true);
+  });
+});
+
 describe("parseFeed — empty / no next page", () => {
   it("returns nextPage=null when no <link rel='next'> is present", () => {
     const xml = `<?xml version="1.0" encoding="utf-8"?>

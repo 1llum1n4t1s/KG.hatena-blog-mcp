@@ -297,11 +297,11 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
         page_id: identifier,
-        title: z.string().max(MAX_TITLE_CHARS).optional(),
+        title: z.string().min(1).max(MAX_TITLE_CHARS).optional(),
         content: z.string().max(MAX_CONTENT_CHARS).optional(),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
-        custom_url: z.string().max(MAX_IDENTIFIER_CHARS).optional(),
+        custom_url: z.string().min(1).max(MAX_IDENTIFIER_CHARS).optional(),
         touch_updated: z
           .boolean()
           .optional()

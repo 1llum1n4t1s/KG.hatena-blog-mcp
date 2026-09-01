@@ -5,6 +5,7 @@ import type {
   CategoryDocument,
   ContentType,
   Entry,
+  EntryControl,
   EntryList,
   EntryWritePayload,
   Page,
@@ -98,6 +99,11 @@ function asBool(value: unknown, label: string): boolean {
   return parseError(`AtomPub response has invalid ${label}`);
 }
 
+function asOptionalBool(value: unknown, label: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  return asBool(value, label);
+}
+
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined) return [];
   return Array.isArray(value) ? value : [value];
@@ -131,17 +137,14 @@ function extractIdFromEditUrl(editUrl: string | undefined): string | undefined {
   return match?.[1];
 }
 
-function extractControl(entry: XmlNode): {
-  draft: boolean;
-  preview: boolean;
-  scheduled: boolean;
-} {
+function extractControl(entry: XmlNode): EntryControl {
   const control = requiredObject(entry, "control", "app:control");
   requiredText(control, "draft", "app:draft");
+  const scheduled = asOptionalBool(control.scheduled, "hatenablog:scheduled");
   return {
     draft: asBool(control.draft, "app:draft"),
     preview: asBool(control.preview, "app:preview"),
-    scheduled: asBool(control.scheduled, "hatenablog:scheduled"),
+    ...(scheduled !== undefined ? { scheduled } : {}),
   };
 }
 

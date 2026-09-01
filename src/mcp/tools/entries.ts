@@ -31,9 +31,9 @@ export function entryView(entry: Entry, includeHtml: boolean): Record<string, un
     categories: entry.categories,
     draft: entry.control.draft,
     preview: entry.control.preview,
-    scheduled: entry.control.scheduled,
     updated: entry.updated,
   };
+  if (entry.control.scheduled !== undefined) view.scheduled = entry.control.scheduled;
   if (entry.published !== undefined) view.published = entry.published;
   if (entry.edited !== undefined) view.edited = entry.edited;
   if (entry.url !== undefined) view.url = entry.url;
@@ -145,7 +145,9 @@ export function mergeEntry(existing: Entry, patch: EntryPatch): EntryWritePayloa
     control: {
       draft: patch.draft ?? existing.control.draft,
       preview: patch.preview ?? existing.control.preview,
-      scheduled: existing.control.scheduled,
+      ...(existing.control.scheduled !== undefined
+        ? { scheduled: existing.control.scheduled }
+        : {}),
     },
   };
   if (existing.contentType !== undefined) payload.contentType = existing.contentType;
@@ -415,7 +417,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
           .max(MAX_IDENTIFIER_CHARS)
           .optional()
           .describe("ISO-8601. Required when scheduled=true."),
-        custom_url: z.string().max(MAX_IDENTIFIER_CHARS).optional(),
+        custom_url: z.string().min(1).max(MAX_IDENTIFIER_CHARS).optional(),
       },
     },
     (args) => createEntryHandler(args, ctx),
@@ -430,7 +432,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
         entry_id: identifier,
-        title: z.string().max(MAX_TITLE_CHARS).optional(),
+        title: z.string().min(1).max(MAX_TITLE_CHARS).optional(),
         content: z.string().max(MAX_CONTENT_CHARS).optional(),
         eyecatch_image_url: eyecatchImageUrlSchema.optional(),
         categories: z
@@ -440,7 +442,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
           .describe("空配列 [] を渡すとカテゴリを空にします"),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
-        custom_url: z.string().max(MAX_IDENTIFIER_CHARS).optional(),
+        custom_url: z.string().min(1).max(MAX_IDENTIFIER_CHARS).optional(),
         touch_updated: z
           .boolean()
           .optional()

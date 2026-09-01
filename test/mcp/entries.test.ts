@@ -155,6 +155,14 @@ describe("mergeEntry", () => {
     expect(payload.control?.scheduled).toBe(false);
   });
 
+  it("GETにscheduledがない場合はfalseを補わず更新payloadでも省略する", () => {
+    const { scheduled: _scheduled, ...control } = baseEntry.control;
+    const payload = mergeEntry({ ...baseEntry, control }, { title: "改題" });
+
+    expect(payload.control).toEqual({ draft: false, preview: false });
+    expect(payload.control?.scheduled).toBeUndefined();
+  });
+
   it("eyecatchImageUrl だけでも既存本文へ先頭画像を追加する", () => {
     const payload = mergeEntry(baseEntry, {
       eyecatchImageUrl: "https://example.com/cover.png",
@@ -426,9 +434,13 @@ describe("deleteEntryHandler", () => {
 describe("registerEntryTools", () => {
   it("登録した5ツールのコールバックを各ハンドラへ接続する", async () => {
     type ToolCallback = (args: Record<string, unknown>) => Promise<unknown>;
+    type StringSchema = { safeParse(value: unknown): { success: boolean } };
     type ToolDefinition = {
       inputSchema?: {
-        eyecatch_image_url?: { safeParse(value: unknown): { success: boolean } };
+        title?: StringSchema;
+        content?: StringSchema;
+        custom_url?: StringSchema;
+        eyecatch_image_url?: StringSchema;
       };
     };
     const callbacks = new Map<string, ToolCallback>();
@@ -460,6 +472,12 @@ describe("registerEntryTools", () => {
     const eyecatchSchema = definitions.get("create_entry")?.inputSchema?.eyecatch_image_url;
     expect(eyecatchSchema?.safeParse("https://example.com/cover.png").success).toBe(true);
     expect(eyecatchSchema?.safeParse("not-a-url").success).toBe(false);
+    const createSchema = definitions.get("create_entry")?.inputSchema;
+    expect(createSchema?.custom_url?.safeParse("").success).toBe(false);
+    const updateSchema = definitions.get("update_entry")?.inputSchema;
+    expect(updateSchema?.title?.safeParse("").success).toBe(false);
+    expect(updateSchema?.custom_url?.safeParse("").success).toBe(false);
+    expect(updateSchema?.content?.safeParse("").success).toBe(true);
     await callbacks.get("list_entries")?.({ blog_id: "example_user.hatenablog.com" });
     await callbacks.get("get_entry")?.({
       blog_id: "example_user.hatenablog.com",

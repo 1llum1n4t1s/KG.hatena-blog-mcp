@@ -80,7 +80,7 @@ At startup, the process derives an in-memory Basic Authorization header from `HA
 
 `update_entry` fetches the current entry and merges only explicitly supplied fields. It preserves omitted title, body, content type, publication state, categories, timestamp, and slug. Pass `categories: []` to clear categories. If `expected_edited` does not match the current value, the tool stops before PUT and reports a conflict.
 
-A scheduled new entry requires `scheduled: true`, `draft: true`, and an `updated` publication timestamp. Existing publication timestamps change only with `touch_updated: true`.
+A scheduled new entry requires `scheduled: true`, `draft: true`, and an `updated` publication timestamp. When Hatena omits `scheduled` from a GET response, the field is also omitted from the result and update XML instead of being synthesized as `false`. Existing publication timestamps change only with `touch_updated: true`.
 
 #### Automatic eyecatch from the first body image
 
