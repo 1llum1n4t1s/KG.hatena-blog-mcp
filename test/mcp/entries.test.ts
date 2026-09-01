@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
 import type { Entry } from "../../src/atompub/types.js";
 import type { ToolContext } from "../../src/mcp/context.js";
@@ -12,6 +13,7 @@ import {
   getEntryHandler,
   listEntriesHandler,
   mergeEntry,
+  registerEntryTools,
   updateEntryHandler,
 } from "../../src/mcp/tools/entries.js";
 import { MAX_CONTENT_CHARS } from "../../src/utils/limits.js";
@@ -418,5 +420,73 @@ describe("deleteEntryHandler", () => {
     expect(res.isError).toBeUndefined();
     expect(res.structuredContent?.ok).toBe(true);
     expect(calls[0]?.method).toBe("DELETE");
+  });
+});
+
+describe("registerEntryTools", () => {
+  it("登録した5ツールのコールバックを各ハンドラへ接続する", async () => {
+    type ToolCallback = (args: Record<string, unknown>) => Promise<unknown>;
+    type ToolDefinition = {
+      inputSchema?: {
+        eyecatch_image_url?: { safeParse(value: unknown): { success: boolean } };
+      };
+    };
+    const callbacks = new Map<string, ToolCallback>();
+    const definitions = new Map<string, ToolDefinition>();
+    const server = {
+      registerTool(name: string, definition: ToolDefinition, callback: ToolCallback) {
+        definitions.set(name, definition);
+        callbacks.set(name, callback);
+      },
+    } as unknown as McpServer;
+    const { ctx, calls } = makeCtx([
+      new Response(readFixture("entry-list.xml"), { status: 200 }),
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+      new Response(readFixture("entry-single.xml"), { status: 201 }),
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+      new Response(readFixture("entry-single.xml"), { status: 200 }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    registerEntryTools(server, ctx);
+
+    expect([...callbacks.keys()]).toEqual([
+      "list_entries",
+      "get_entry",
+      "create_entry",
+      "update_entry",
+      "delete_entry",
+    ]);
+    const eyecatchSchema = definitions.get("create_entry")?.inputSchema?.eyecatch_image_url;
+    expect(eyecatchSchema?.safeParse("https://example.com/cover.png").success).toBe(true);
+    expect(eyecatchSchema?.safeParse("not-a-url").success).toBe(false);
+    await callbacks.get("list_entries")?.({ blog_id: "example_user.hatenablog.com" });
+    await callbacks.get("get_entry")?.({
+      blog_id: "example_user.hatenablog.com",
+      entry_id: "3000000000000000010",
+    });
+    await callbacks.get("create_entry")?.({
+      blog_id: "example_user.hatenablog.com",
+      title: "登録経路テスト",
+      content: "本文",
+    });
+    await callbacks.get("update_entry")?.({
+      blog_id: "example_user.hatenablog.com",
+      entry_id: "3000000000000000010",
+      title: "更新経路テスト",
+    });
+    await callbacks.get("delete_entry")?.({
+      blog_id: "example_user.hatenablog.com",
+      entry_id: "3000000000000000010",
+    });
+
+    expect(calls.map(({ method }) => method)).toEqual([
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "PUT",
+      "DELETE",
+    ]);
   });
 });
