@@ -22,7 +22,7 @@
 | `src/cli.ts` | npmの実行入口。stdioサーバーを起動し、秘密を含まない起動エラーだけをstderrへ出す |
 | `src/index.ts` | npmのライブラリ公開入口。サーバーfactory、認証helper、server情報をexportする |
 | `src/adapters/stdio/index.ts` | 環境変数から認証contextを作り、`StdioServerTransport` とMCPサーバーを接続する |
-| `src/mcp/server.ts` | 1つの `McpServer` へ13ツールを登録する |
+| `src/mcp/server.ts` | MCP initializeで公開するサーバー名とversionを保持し、1つの `McpServer` へ13ツールを登録する |
 | `src/mcp/context.ts` | 認証情報、fetch、retry、signal、timeout、request IDをツールへ渡す |
 | `src/mcp/tools/entries.ts` | エントリ5ツール、部分更新、公開予約条件、競合検出、自動アイキャッチ |
 | `src/mcp/tools/pages.ts` | 固定ページ5ツール、部分更新、競合検出 |
@@ -100,6 +100,6 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 
 ## buildと検証境界
 
-`tsconfig.json` は開発時の型検査、`tsconfig.build.json` は `dist/` のJavaScriptと型宣言生成を定義する。`package.json` はCLI、library export、version、tarball内容、public accessを定義する。
+`tsconfig.json` は開発時の型検査、`tsconfig.build.json` は `dist/` のJavaScriptと型宣言生成を定義する。`package.json` はCLI、library export、npm配布version、tarball内容、public accessを定義する。MCP initializeで公開するversionは `src/mcp/server.ts` の `SERVER_INFO.version` が保持し、同一リリースを表すためnpm配布versionと常に一致させる。
 
 自動テストはNode上のVitestでclients、XML、MCP handlers、認証、stdio adapterを検証する。`scripts/smoke-stdio.mjs` はbuild済みCLIを実プロセスとして起動し、MCP initialize、13ツールの列挙、アイキャッチschemaを検証する。coverage要件と必須コマンドは [AGENTS.md](./AGENTS.md) を参照する。

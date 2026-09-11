@@ -134,15 +134,9 @@ pnpm build
 - 上流API timeout: 1回の試行につき30秒
 - 自動再試行: GET / PUT / DELETEなどの冪等メソッドのみ。POSTは再試行しません。
 
-## 開発と検証
+## 開発者向け情報
 
-```sh
-pnpm install --frozen-lockfile
-pnpm verify
-npm pack --dry-run --json
-```
-
-`pnpm verify` はBiome、TypeScript、coverage付きVitest、build済みCLIへのstdio接続を実行します。詳しい構造と不変条件は [DESIGN.md](./DESIGN.md) を参照してください。
+開発時の作業規約と必須検証は [AGENTS.md](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/blob/main/AGENTS.md)、システムの構造と不変条件は [DESIGN.md](./DESIGN.md) を参照してください。
 
 ## セキュリティ
 

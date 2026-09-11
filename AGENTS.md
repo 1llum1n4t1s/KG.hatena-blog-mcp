@@ -9,7 +9,7 @@
 - 公開npmパッケージ名は `@kagayoi/hatena-blog-mcp`、実行コマンドは `hatena-blog-mcp`、成果物は `dist/` とする。
 - 本製品はローカルstdio専用である。HTTPサーバー、リモートMCP、クラウドdeploy用アダプターや設定を、明示的な製品方針変更なしに再導入しない。
 - 認証情報は `HATENA_ID` / `HATENA_API_KEY` から読み、コマンドライン引数、ログ、fixture、commitへ入れない。
-- version変更、npm publish、Git commit・pushは、それぞれを明示されたリリースまたはGit操作の依頼時だけ行う。
+- version変更、npm publish、Git commit・pushは、それぞれを明示されたリリースまたはGit操作の依頼時だけ行う。version変更時は `package.json` と `src/mcp/server.ts` の `SERVER_INFO.version`、対応するテストの期待値を同じ値へ同期する。
 
 ## 変更時の規約
 
