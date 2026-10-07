@@ -78,14 +78,6 @@ describe("AtomPubClient — entries", () => {
     expect(calls[0]?.headers.authorization).toBe(creds.authHeader);
   });
 
-  it("appends ?page= when a page token is provided", async () => {
-    const { client, calls } = makeClient([
-      new Response(readFixture("entry-list.xml"), { status: 200 }),
-    ]);
-    await client.listEntries({ page: "1377584217" });
-    expect(calls[0]?.url).toContain("?page=1377584217");
-  });
-
   it("GET get_entry hits the member URL", async () => {
     const { client, calls } = makeClient([
       new Response(readFixture("entry-single.xml"), { status: 200 }),

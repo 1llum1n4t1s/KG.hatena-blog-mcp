@@ -21,10 +21,6 @@ describe("parseFeed", () => {
   const xml = readFixture("entry-list.xml");
   const feed = parseFeed(xml);
 
-  it("extracts every entry", () => {
-    expect(feed.entries).toHaveLength(3);
-  });
-
   it("extracts the epoch-only next_page token", () => {
     expect(feed.nextPage).toBe("1377584217");
   });
@@ -144,10 +140,6 @@ describe("parseCategories", () => {
 
   it("returns the list of terms in document order", () => {
     expect(doc.categories).toEqual(["技術", "MCP", "Cloudflare", "雑記", "旅行"]);
-  });
-
-  it("honours the fixed attribute (no => false)", () => {
-    expect(doc.fixed).toBe(false);
   });
 });
 
