@@ -7,7 +7,7 @@ import {
   MAX_IMAGE_BASE64_CHARS,
   MAX_TITLE_CHARS,
 } from "../../utils/limits.js";
-import type { ToolContext } from "../context.js";
+import { type ToolContext, withRequestSignal } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
 const imageContentType = z.enum([
@@ -99,7 +99,7 @@ export function registerImageTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { readOnlyHint: true },
     },
-    (args) => getImageHandler(args, ctx),
+    (args, extra) => getImageHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -118,6 +118,6 @@ export function registerImageTools(server: McpServer, ctx: ToolContext): void {
         folder: z.string().min(1).max(MAX_TITLE_CHARS).optional().describe("省略時は Hatena Blog"),
       },
     },
-    (args) => uploadImageHandler(args, ctx),
+    (args, extra) => uploadImageHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 }

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { MAX_IDENTIFIER_CHARS } from "../../utils/limits.js";
-import { makeClient, type ToolContext } from "../context.js";
+import { makeClient, type ToolContext, withRequestSignal } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
 interface ListCategoriesArgs {
@@ -43,6 +43,6 @@ export function registerCategoryTools(server: McpServer, ctx: ToolContext): void
       },
       annotations: { readOnlyHint: true },
     },
-    (args) => listCategoriesHandler(args, ctx),
+    (args, extra) => listCategoriesHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 }

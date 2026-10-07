@@ -1,6 +1,11 @@
 import { AtomPubError } from "../atompub/errors.js";
 import type { BasicCredentials } from "../utils/auth.js";
-import { MAX_XML_RESPONSE_BYTES, readErrorText, readTextWithLimit } from "../utils/body.js";
+import {
+  MAX_XML_RESPONSE_BYTES,
+  ResponseBodyTooLargeError,
+  readErrorText,
+  readTextWithLimit,
+} from "../utils/body.js";
 import { fetchWithRetry, type RetryOptions } from "../utils/retry.js";
 import type { FotolifeImage, FotolifeUploadPayload } from "./types.js";
 import { buildWsseHeaders } from "./wsse.js";
@@ -90,11 +95,13 @@ export class FotolifeClient {
     try {
       return await readTextWithLimit(response, MAX_XML_RESPONSE_BYTES);
     } catch (cause) {
-      throw new AtomPubError("Hatena Fotolife response exceeded the XML size limit", {
-        status: 0,
-        code: "parse_error",
-        cause,
-      });
+      const oversized = cause instanceof ResponseBodyTooLargeError;
+      throw new AtomPubError(
+        oversized
+          ? "Hatena Fotolife response exceeded the XML size limit"
+          : "Hatena Fotolife response body could not be read",
+        { status: 0, code: oversized ? "parse_error" : "network_error", cause },
+      );
     }
   }
 }

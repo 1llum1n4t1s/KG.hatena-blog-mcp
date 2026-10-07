@@ -5,11 +5,8 @@ import type { RetryOptions } from "../utils/retry.js";
 /**
  * Everything a tool handler needs to talk to Hatena on behalf of the caller.
  *
- * Constructed once per MCP request in the transport adapter so that every
- * tool invocation inside that request sees the same credentials. The
- * adapter is responsible for extracting `credentials` from the
- * `Authorization` header and rejecting unauthenticated requests before the
- * tool layer ever runs.
+ * stdioプロセスごとに環境変数から認証情報を設定する。
+ * 各ツール要求では、このcontextを複製して要求単位のキャンセルsignalを渡す。
  */
 export interface ToolContext {
   credentials: BasicCredentials;
@@ -18,6 +15,15 @@ export interface ToolContext {
   signal?: AbortSignal;
   requestTimeoutMs?: number;
   requestId?: string;
+}
+
+/** 共有contextを変更せず、要求と呼び出し元の両方のキャンセルを伝える。 */
+export function withRequestSignal(ctx: ToolContext, signal?: AbortSignal): ToolContext {
+  if (!signal) return ctx;
+  return {
+    ...ctx,
+    signal: ctx.signal ? AbortSignal.any([ctx.signal, signal]) : signal,
+  };
 }
 
 /**

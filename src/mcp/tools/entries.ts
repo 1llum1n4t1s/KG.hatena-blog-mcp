@@ -9,7 +9,7 @@ import {
   MAX_IDENTIFIER_CHARS,
   MAX_TITLE_CHARS,
 } from "../../utils/limits.js";
-import { makeClient, type ToolContext } from "../context.js";
+import { makeClient, type ToolContext, withRequestSignal } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
 // ---------------------------------------------------------------------------
@@ -379,7 +379,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { readOnlyHint: true },
     },
-    (args) => listEntriesHandler(args, ctx),
+    (args, extra) => listEntriesHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -394,7 +394,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { readOnlyHint: true },
     },
-    (args) => getEntryHandler(args, ctx),
+    (args, extra) => getEntryHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -420,7 +420,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
         custom_url: z.string().min(1).max(MAX_IDENTIFIER_CHARS).optional(),
       },
     },
-    (args) => createEntryHandler(args, ctx),
+    (args, extra) => createEntryHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -457,7 +457,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { destructiveHint: true },
     },
-    (args) => updateEntryHandler(args, ctx),
+    (args, extra) => updateEntryHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -471,7 +471,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { destructiveHint: true, idempotentHint: true },
     },
-    (args) => deleteEntryHandler(args, ctx),
+    (args, extra) => deleteEntryHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 }
 

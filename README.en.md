@@ -133,6 +133,8 @@ The official Fotolife feed does not list the private “Hatena Blog” folder po
 - Categories: 100 entries, 256 characters each
 - Upstream timeout: 30 seconds per attempt
 - Automatic retry: idempotent methods such as GET, PUT, and DELETE only; never POST
+- MCP request cancellation propagates to upstream requests and retry waits. Writes already sent cannot be rolled back.
+- Response-body timeouts and connection failures are reported as network errors, separately from oversized bodies and XML parsing errors.
 
 ## Development and verification
 
@@ -142,7 +144,7 @@ pnpm verify
 npm pack --dry-run --json
 ```
 
-`pnpm verify` runs Biome, TypeScript, coverage-enabled Vitest, and a stdio connection against the built CLI. See [DESIGN.md](./DESIGN.md) for architecture and invariants.
+`pnpm verify` runs Biome, TypeScript, coverage-enabled Vitest, a stdio connection against the built CLI, and E2E checks for image limits, cancellation, partial updates, and response-body failures. After building, run `node scripts/smoke-behavior.mjs --report <output.json>` to save the results. See [DESIGN.md](./DESIGN.md) for architecture and invariants.
 
 ## Security
 

@@ -1,7 +1,7 @@
 /**
  * Error thrown for any non-2xx response from the Hatena AtomPub API, plus
  * parse failures. The MCP layer maps these into user-facing Japanese messages;
- * the raw body is kept here only for logging and never surfaced to clients.
+ * 本文snippetは診断用の例外情報に限り、MCP応答とログには出さない。
  */
 export class AtomPubError extends Error {
   readonly status: number;

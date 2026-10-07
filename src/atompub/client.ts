@@ -1,4 +1,9 @@
-import { MAX_XML_RESPONSE_BYTES, readErrorText, readTextWithLimit } from "../utils/body.js";
+import {
+  MAX_XML_RESPONSE_BYTES,
+  ResponseBodyTooLargeError,
+  readErrorText,
+  readTextWithLimit,
+} from "../utils/body.js";
 import type { RetryOptions } from "../utils/retry.js";
 import { fetchWithRetry } from "../utils/retry.js";
 import { AtomPubError } from "./errors.js";
@@ -192,11 +197,13 @@ export class AtomPubClient {
     try {
       return await readTextWithLimit(response, MAX_XML_RESPONSE_BYTES);
     } catch (cause) {
-      throw new AtomPubError("Hatena AtomPub response exceeded the XML size limit", {
-        status: 0,
-        code: "parse_error",
-        cause,
-      });
+      const oversized = cause instanceof ResponseBodyTooLargeError;
+      throw new AtomPubError(
+        oversized
+          ? "Hatena AtomPub response exceeded the XML size limit"
+          : "Hatena AtomPub response body could not be read",
+        { status: 0, code: oversized ? "parse_error" : "network_error", cause },
+      );
     }
   }
 }

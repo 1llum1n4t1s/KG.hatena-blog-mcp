@@ -83,7 +83,9 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 - 自動retryはGET、PUT、DELETE、HEAD、OPTIONS、TRACEに限定する。POSTは重複作成を防ぐため再試行しない。
 - `Retry-After` を優先し、通常は指数backoff、jitter、最大待機時間を適用する。
 - 呼び出し元abortは即時伝播する。試行timeoutは冪等メソッドなら新しいtimeoutで再試行し、retry待機中は呼び出し元abortだけを監視する。
+- 各ツール登録はSDKの要求単位signalと呼び出し元のcontext signalを合成し、共有contextを変更せず上流clientへ渡す。キャンセル後に新たなPUTを送らず、他の要求のsignalへ影響しない。送信済みの書き込みを取り消す保証はない。
 - 上流network例外と、最終試行まで失敗したtimeoutは `AtomPubError` の `network_error` へ正規化する。
+- 本文読込中の通信切断・timeoutも `network_error` とし、サイズ上限超過は `parse_error` のまま維持する。本文読込失敗による再試行は追加しない。
 - FotolifeのGETは各試行で新しいWSSEヘッダを生成する。
 - 非成功HTTPレスポンスはstatusに対応する `AtomPubError` へ変換し、MCP層で日本語メッセージへ写像する。
 
@@ -103,3 +105,5 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 `tsconfig.json` は開発時の型検査、`tsconfig.build.json` は `dist/` のJavaScriptと型宣言生成を定義する。`package.json` はCLI、library export、npm配布version、tarball内容、public accessを定義する。MCP initializeで公開するversionは `src/mcp/server.ts` の `SERVER_INFO.version` が保持し、同一リリースを表すためnpm配布versionと常に一致させる。
 
 自動テストはNode上のVitestでclients、XML、MCP handlers、認証、stdio adapterを検証する。`scripts/smoke-stdio.mjs` はbuild済みCLIを実プロセスとして起動し、MCP initialize、13ツールの列挙、アイキャッチschemaを検証する。coverage要件と必須コマンドは [AGENTS.md](./AGENTS.md) を参照する。
+
+`scripts/smoke-behavior.mjs` はSDK clientからMCPツール・上流clientまでを通すE2Eと、localhost HTTPによる本文障害の検証を行う。最大10 MiB画像、不正入力時のPOST抑止、POST非再試行、要求単位・context単位キャンセル、部分更新保持、本文通信失敗とサイズ超過の分類を確認する。`pnpm verify` から実行し、`--report <path>` を指定すると環境と各結果をJSONに保存する。

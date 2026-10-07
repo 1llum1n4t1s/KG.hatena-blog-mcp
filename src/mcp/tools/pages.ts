@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ContentType, Page, PageWritePayload } from "../../atompub/types.js";
 import { MAX_CONTENT_CHARS, MAX_IDENTIFIER_CHARS, MAX_TITLE_CHARS } from "../../utils/limits.js";
-import { makeClient, type ToolContext } from "../context.js";
+import { makeClient, type ToolContext, withRequestSignal } from "../context.js";
 import { ok, type ToolTextResult, toolError } from "../response.js";
 
 // ---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { readOnlyHint: true },
     },
-    (args) => listPagesHandler(args, ctx),
+    (args, extra) => listPagesHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -258,7 +258,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { readOnlyHint: true },
     },
-    (args) => getPageHandler(args, ctx),
+    (args, extra) => getPageHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -285,7 +285,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
           .describe("ページのスラッグ (例: about)"),
       },
     },
-    (args) => createPageHandler(args, ctx),
+    (args, extra) => createPageHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -314,7 +314,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { destructiveHint: true },
     },
-    (args) => updatePageHandler(args, ctx),
+    (args, extra) => updatePageHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 
   server.registerTool(
@@ -328,6 +328,6 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
       },
       annotations: { destructiveHint: true, idempotentHint: true },
     },
-    (args) => deletePageHandler(args, ctx),
+    (args, extra) => deletePageHandler(args, withRequestSignal(ctx, extra?.signal)),
   );
 }

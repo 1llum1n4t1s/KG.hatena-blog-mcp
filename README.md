@@ -133,10 +133,14 @@ pnpm build
 - カテゴリ: 100件、各256文字
 - 上流API timeout: 1回の試行につき30秒
 - 自動再試行: GET / PUT / DELETEなどの冪等メソッドのみ。POSTは再試行しません。
+- MCP要求のキャンセルは上流通信と再試行の待機へ伝播します。送信済みの書き込みは巻き戻せません。
+- 応答本文のタイムアウト・通信切断は接続エラーとして返し、本文のサイズ超過やXML解析エラーと区別します。
 
 ## 開発者向け情報
 
 開発時の作業規約と必須検証は [AGENTS.md](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/blob/main/AGENTS.md)、システムの構造と不変条件は [DESIGN.md](./DESIGN.md) を参照してください。
+
+`pnpm verify` は既存テストとstdio接続に加え、画像上限・キャンセル・部分更新・本文障害のE2Eも実行します。ビルド後に `node scripts/smoke-behavior.mjs --report <保存先.json>` を実行すると検証結果を保存できます。
 
 ## セキュリティ
 

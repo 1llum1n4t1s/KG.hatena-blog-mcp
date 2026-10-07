@@ -117,10 +117,7 @@ export function normalizeImageBase64(data: string): string {
   }
   const compact = data.replace(/\s+/g, "");
   if (!compact) throw new Error("画像のbase64データが空です。");
-  if (
-    compact.length % 4 !== 0 ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(compact)
-  ) {
+  if (compact.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
     throw new Error("画像のbase64データが不正です。");
   }
   const padding = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
