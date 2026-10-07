@@ -59,21 +59,21 @@
     "test:stdio": "pnpm build && node scripts/smoke-stdio.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:stdio",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:stdio && node scripts/smoke-behavior.mjs",
     "prepack": "pnpm build",
     "prepublishOnly": "pnpm verify"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "fast-xml-parser": "^5.11.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
-    "@types/node": "^26.6.3",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
     "typescript": "^7.0.2",
-    "vite": "8.3.1",
-    "vitest": "^5.0.2"
+    "vite": "8.3.3",
+    "vitest": "^5.0.3"
   }
 }
