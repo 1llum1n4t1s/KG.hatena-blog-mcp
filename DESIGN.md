@@ -102,6 +102,8 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 
 ## buildと検証境界
 
+npm公開はself-hosted Linux runnerで行い、公開stepだけに `secrets.NPM_TOKEN` を `NODE_AUTH_TOKEN` として渡す。npmのTrusted Publishingとprovenance生成はself-hosted runnerに対応しないため、token認証でprovenanceを付けずに公開する。事前検証・build後に一度だけpackし、pack結果と実tarballのSHA-512を照合する。既存版はregistryのintegrityが同じ場合だけ省略し、新規公開時も直前に同じファイルのdigestを再確認してからtarballを渡す。未公開と判断する応答は404だけとし、公開結果が不明な場合は自動再送しない。
+
 `tsconfig.json` は開発時の型検査、`tsconfig.build.json` は `dist/` のJavaScriptと型宣言生成を定義する。`package.json` はCLI、library export、npm配布version、tarball内容、public accessを定義する。MCP initializeで公開するversionは `src/mcp/server.ts` の `SERVER_INFO.version` が保持し、同一リリースを表すためnpm配布versionと常に一致させる。
 
 自動テストはNode上のVitestでclients、XML、MCP handlers、認証、stdio adapterを検証する。`scripts/smoke-stdio.mjs` はbuild済みCLIを実プロセスとして起動し、MCP initialize、13ツールの列挙、アイキャッチschemaを検証する。coverage要件と必須コマンドは [AGENTS.md](./AGENTS.md) を参照する。
