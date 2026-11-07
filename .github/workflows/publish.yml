@@ -15,10 +15,11 @@ concurrency:
 jobs:
   publish:
     if: startsWith(github.ref, 'refs/heads/release/')
-    runs-on: [self-hosted, Linux, ARM64, m3mb14]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -26,7 +27,6 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-          registry-url: https://registry.npmjs.org/
       - name: Prepare package tools
         run: npm install --global npm@11.19.1 pnpm@10.11.1
       - name: Check release version
@@ -43,8 +43,8 @@ jobs:
         run: npm pack --dry-run --json
       - name: Pack publication archive
         run: npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP" > "$RUNNER_TEMP/hatena-pack.json"
-      - name: Check published version
-        id: registry
+      - name: Verify packed archive
+        id: package
         run: |
           node --input-type=module <<'JS'
           import { appendFileSync, readFileSync } from 'node:fs';
@@ -57,25 +57,24 @@ jobs:
           const file = join(process.env.RUNNER_TEMP, packed[0].filename);
           const integrity = `sha512-${createHash('sha512').update(readFileSync(file)).digest('base64')}`;
           if (integrity !== packed[0].integrity) throw new Error('Packed archive integrity mismatch');
-          const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`);
-          if (!response.ok && response.status !== 404) throw new Error(`Registry returned ${response.status}`);
-          if (response.ok && (await response.json()).dist?.integrity !== integrity) throw new Error('Published version has different archive integrity');
-          appendFileSync(process.env.GITHUB_OUTPUT, `published=${response.ok}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `file=${file}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `integrity=${integrity}\n`);
           JS
-      - name: Publish with token authentication
+      - name: Check published version
+        id: registry
+        env:
+          PACKAGE_INTEGRITY: ${{ steps.package.outputs.integrity }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'));
+          const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`);
+          if (!response.ok && response.status !== 404) throw new Error(`Registry returned ${response.status}`);
+          if (response.ok && (await response.json()).dist?.integrity !== process.env.PACKAGE_INTEGRITY) throw new Error('Published version has different archive integrity');
+          appendFileSync(process.env.GITHUB_OUTPUT, `published=${response.ok}\n`);
+          JS
+      - name: Publish with OIDC
         if: steps.registry.outputs.published != 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          PACKAGE_FILE: ${{ steps.registry.outputs.file }}
-          PACKAGE_INTEGRITY: ${{ steps.registry.outputs.integrity }}
-        run: |
-          test -n "$NODE_AUTH_TOKEN"
-          node --input-type=module <<'JS'
-          import { readFileSync } from 'node:fs';
-          import { createHash } from 'node:crypto';
-          const integrity = `sha512-${createHash('sha512').update(readFileSync(process.env.PACKAGE_FILE)).digest('base64')}`;
-          if (integrity !== process.env.PACKAGE_INTEGRITY) throw new Error('Archive changed after verification');
-          JS
-          npm publish "$PACKAGE_FILE" --access public --provenance=false --registry=https://registry.npmjs.org/
+          PACKAGE_FILE: ${{ steps.package.outputs.file }}
+        run: npm publish "$PACKAGE_FILE" --access public --provenance --ignore-scripts --registry=https://registry.npmjs.org/
