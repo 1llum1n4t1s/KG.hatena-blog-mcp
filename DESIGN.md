@@ -19,7 +19,7 @@
 
 | コンポーネント | 責務 |
 | --- | --- |
-| `src/cli.ts` | npmの実行入口。stdioサーバーを起動し、秘密を含まない起動エラーだけをstderrへ出す |
+| `src/cli.ts` | npmの実行入口。stdioサーバーを起動し、秘密を含まない起動エラーだけを、実行環境の言語（`src/i18n.ts`・`src/locales/*.json` の9言語）でstderrへ出す |
 | `src/index.ts` | npmのライブラリ公開入口。サーバーfactory、認証helper、server情報をexportする |
 | `src/adapters/stdio/index.ts` | 環境変数から認証contextを作り、`StdioServerTransport` とMCPサーバーを接続する |
 | `src/mcp/server.ts` | MCP initializeで公開するサーバー名とversionを保持し、1つの `McpServer` へ13ツールを登録する |
@@ -32,7 +32,7 @@
 | `src/atompub/xml.ts` | Atom/XMLと型付きモデルの相互変換 |
 | `src/fotolife/client.ts` | FotolifeのGET/POST、WSSE、timeout、上限付き読み取り |
 | `src/fotolife/xml.ts` | Fotolife XML、base64画像、記事用記法の変換 |
-| `src/mcp/response.ts` | MCP成功結果、日本語エラー、秘密を除いた構造化ログ |
+| `src/mcp/response.ts` | MCP成功結果、英語エラー（AIが読む文言は英語固定）、秘密を除いた構造化ログ |
 | `src/utils/` | 認証生成、サイズ上限、ストリーム読み取り、retry、XML 1.0文字検証 |
 
 ## プロセスとデータフロー
@@ -87,7 +87,7 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 - 上流network例外と、最終試行まで失敗したtimeoutは `AtomPubError` の `network_error` へ正規化する。
 - 本文読込中の通信切断・timeoutも `network_error` とし、サイズ上限超過は `parse_error` のまま維持する。本文読込失敗による再試行は追加しない。
 - FotolifeのGETは各試行で新しいWSSEヘッダを生成する。
-- 非成功HTTPレスポンスはstatusに対応する `AtomPubError` へ変換し、MCP層で日本語メッセージへ写像する。
+- 非成功HTTPレスポンスはstatusに対応する `AtomPubError` へ変換し、MCP層で英語メッセージへ写像する。
 
 ## 採用済み設計判断とトレードオフ
 

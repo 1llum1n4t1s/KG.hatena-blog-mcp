@@ -1,32 +1,32 @@
 # hatena-blog-mcp
 
-日本語 | [English README](./README.en.md)
+**English** | [日本語](./README.ja.md) | [简体中文](./README.zh-CN.md) | [繁體中文](./README.zh-TW.md) | [한국어](./README.ko.md) | [Español](./README.es.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [Português (Brasil)](./README.pt-BR.md)
 
 [![npm version](https://img.shields.io/npm/v/@kagayoi/hatena-blog-mcp)](https://www.npmjs.com/package/@kagayoi/hatena-blog-mcp)
 
 > [!IMPORTANT]
-> このリポジトリは [Keisuke69/hatena-blog-mcp](https://github.com/Keisuke69/hatena-blog-mcp) をフォークし、独自に保守している非公式の派生版です。はてなフォトライフ対応、更新競合の検出、入力・レスポンス上限、ローカルstdio対応など、フォーク固有の変更を含みます。これらの変更に関するIssueは[このフォーク](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/issues)へ報告してください。変更内容は [CHANGELOG.md](./CHANGELOG.md) にまとめています。
+> This repository is an unofficial, independently maintained fork of [Keisuke69/hatena-blog-mcp](https://github.com/Keisuke69/hatena-blog-mcp). Fork-specific changes include Hatena Fotolife support, update-conflict detection, defensive size limits, and a local stdio runtime. Report issues about these changes to [this fork](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/issues). See [CHANGELOG.md](./CHANGELOG.md) for details.
 
-[はてなブログ AtomPub API](https://developer.hatena.ne.jp/ja/documents/blog/apis/atom) と [はてなフォトライフ Atom API](https://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom/) を読み書きする、ローカル実行型のMCP (Model Context Protocol) サーバーです。Node.js上でstdio通信し、外部のMCPホスティングや中継サービスは必要ありません。
+A local MCP (Model Context Protocol) server for reading and writing the [Hatena Blog AtomPub API](https://developer.hatena.ne.jp/ja/documents/blog/apis/atom) and [Hatena Fotolife Atom API](https://developer.hatena.ne.jp/ja/documents/fotolife/apis/atom/). It communicates over stdio on Node.js and does not require an externally hosted MCP endpoint or relay.
 
-## 特徴
+## Features
 
-- エントリ、固定ページ、カテゴリ、フォトライフ画像を扱う全13ツール
-- `update_entry` / `update_page` の安全な部分更新と `expected_edited` による競合検出
-- `eyecatch_image_url` を使った本文先頭画像による自動アイキャッチ
-- POSTを自動再試行せず、記事や画像の重複作成を防止
-- XML、本文、カテゴリ、画像、エラーボディに上限を設けた防御的な実装
-- 認証情報をコマンドライン引数へ置かず、ローカルプロセスの環境変数からのみ取得
+- 13 tools covering entries, pages, categories, and Fotolife images
+- Safe partial updates in `update_entry` and `update_page`, with `expected_edited` conflict detection
+- Automatic eyecatch selection via an optional first-body-image block
+- No automatic retry for POST, avoiding duplicate posts and image uploads
+- Defensive limits for XML, content, categories, images, and error bodies
+- Credentials come from local process environment variables, never command-line arguments
 
-## クイックスタート
+## Quick start
 
-### 前提条件
+### Requirements
 
-- Node.js 22以上
-- はてなID
-- はてなブログの「設定 → 詳細設定 → AtomPub」に表示されるAPIキー
+- Node.js 22 or later
+- Your Hatena ID
+- The API key shown under Hatena Blog → Settings → Advanced → AtomPub
 
-stdio対応MCPクライアントへ次のように登録します。
+Register the server in any stdio-capable MCP client:
 
 ```jsonc
 {
@@ -43,15 +43,15 @@ stdio対応MCPクライアントへ次のように登録します。
 }
 ```
 
-Windowsでクライアントが `npx` を見つけられない場合は、`command` を `npx.cmd` にします。認証情報の設定方法はクライアントごとに異なるため、利用できる場合はクライアントやOSのシークレット管理機能を優先してください。
+If a Windows client cannot find `npx`, use `npx.cmd`. Prefer the client's or operating system's secret storage when available instead of keeping credentials directly in a shared configuration file.
 
-### 最新版の取得
+### Updates
 
-`@latest` を指定すると、MCPプロセスの起動時にnpmの `latest` dist-tagを解決します。MCP自身が実行中にファイルを書き換えたり、独自の更新サーバーへ問い合わせたりはしません。再現性を優先する場合は、`latest` を実際に利用するリリースversionへ置き換えて固定できます。
+The `@latest` spec resolves npm's `latest` dist-tag when the MCP process starts. The MCP does not rewrite itself or contact a custom update service while running. For reproducible installs, replace `latest` with the exact release version you intend to use.
 
-すでに `@kagayoi/hatena-blog-mcp@1.0.6` のような固定版で登録している場合は、登録済みの起動引数を `@kagayoi/hatena-blog-mcp@latest` に書き換えると、以後は起動のたびに自動で最新版になります（README の更新だけでは既存の登録は変わりません）。
+If you already registered the server with a pinned version (for example `@kagayoi/hatena-blog-mcp@1.0.6`), change the package argument in that registration to `@kagayoi/hatena-blog-mcp@latest`. Updating this README does not change existing registrations, but after that edit each launch uses the latest release automatically.
 
-### ソースから起動
+### Run from source
 
 ```sh
 git clone https://github.com/1llum1n4t1s/KG.hatena-blog-mcp.git
@@ -60,96 +60,100 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-クライアント設定では `command` を `node`、`args` をclone先の `dist/cli.js` の絶対パスにし、同じ2つの環境変数を渡します。
+Set the client command to `node`, pass the absolute path to `dist/cli.js`, and provide the same two environment variables.
 
-## 認証とデータフロー
+## Authentication and data flow
 
-起動時に `HATENA_ID` と `HATENA_API_KEY` からBasic認証ヘッダをメモリ上で生成し、AtomPub APIへ送ります。フォトライフでは同じ認証情報からリクエストごとにWSSEヘッダを生成します。認証情報、記事、画像をディスクへ保存する機能はありません。
+At startup, the process derives an in-memory Basic Authorization header from `HATENA_ID` and `HATENA_API_KEY` for AtomPub. Fotolife requests derive a fresh WSSE header from the same credentials. The server does not persist credentials, posts, or images.
 
-`blog_id` はブログのドメイン名です。例: `example.hatenablog.com`、`example.hateblo.jp`。グループブログでは各ツールの任意引数 `hatena_id` でURL上のはてなIDだけを上書きできます。
+`blog_id` is the blog domain, for example `example.hatenablog.com` or `example.hateblo.jp`. On group blogs, the optional `hatena_id` tool argument overrides only the Hatena ID used in the upstream URL.
 
-## ツールリファレンス
+## Tool reference
 
-### エントリ
+### Entries
 
-| 名前 | 用途 | 必須 | 主なオプション |
+| Tool | Purpose | Required | Main options |
 | --- | --- | --- | --- |
-| `list_entries` | エントリ一覧（1ページ7件） | `blog_id` | `hatena_id`, `page`, `include_html` |
-| `get_entry` | エントリを1件取得 | `blog_id`, `entry_id` | `hatena_id`, `include_html` |
-| `create_entry` | 新規投稿 | `blog_id`, `title`, `content` | `content_type`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `scheduled`, `updated`, `custom_url` |
-| `update_entry` | 既存エントリを部分更新 | `blog_id`, `entry_id` | `title`, `content`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
-| `delete_entry` | エントリを削除 | `blog_id`, `entry_id` | `hatena_id` |
+| `list_entries` | List entries, 7 per page | `blog_id` | `hatena_id`, `page`, `include_html` |
+| `get_entry` | Get one entry | `blog_id`, `entry_id` | `hatena_id`, `include_html` |
+| `create_entry` | Create an entry | `blog_id`, `title`, `content` | `content_type`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `scheduled`, `updated`, `custom_url` |
+| `update_entry` | Partially update an entry | `blog_id`, `entry_id` | `title`, `content`, `eyecatch_image_url`, `categories`, `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
+| `delete_entry` | Delete an entry | `blog_id`, `entry_id` | `hatena_id` |
 
-`update_entry` は現在値を取得してから指定値をマージします。未指定のタイトル、本文、記法、公開状態、カテゴリ、投稿日時、スラッグは維持されます。カテゴリだけを消す場合は `categories: []` を渡します。`expected_edited` が現在値と異なる場合はPUTせず、競合エラーにします。
+`update_entry` fetches the current entry and merges only explicitly supplied fields. It preserves omitted title, body, content type, publication state, categories, timestamp, and slug. Pass `categories: []` to clear categories. If `expected_edited` does not match the current value, the tool stops before PUT and reports a conflict.
 
-`scheduled: true` の新規投稿には `draft: true` と公開日時 `updated` の両方が必要です。HatenaのGETレスポンスに `scheduled` がない場合は結果と更新XMLでも省略し、予約なしを示す `false` を補いません。更新時に投稿日時を変更するのは `touch_updated: true` を指定した場合だけです。
+A scheduled new entry requires `scheduled: true`, `draft: true`, and an `updated` publication timestamp. When Hatena omits `scheduled` from a GET response, the field is also omitted from the result and update XML instead of being synthesized as `false`. Existing publication timestamps change only with `touch_updated: true`.
 
-#### 本文先頭画像による自動アイキャッチ
+#### Automatic eyecatch from the first body image
 
-`create_entry` または `update_entry` に `eyecatch_image_url` を指定すると、そのHTTP(S)画像を識別用コメント付きのHTMLブロックとして本文先頭へ挿入します。はてなブログが本文中の最初の画像を自動採用する仕組みを利用するもので、編集画面の公式アイキャッチ項目を直接設定する機能ではありません。画像は記事本文にも表示されます。
+When `eyecatch_image_url` is supplied to `create_entry` or `update_entry`, the MCP inserts an identifiable HTML image block at the start of the body. Hatena Blog can then select the first body image automatically. This does not set Hatena's official eyecatch field directly, and the image remains visible in the article body.
 
 ```json
 {
   "name": "create_entry",
   "arguments": {
     "blog_id": "example.hatenablog.com",
-    "title": "自動アイキャッチ付きの記事",
-    "content": "### 本文\n\nここから記事本文です。",
+    "title": "An entry with an automatic eyecatch",
+    "content": "### Body\n\nThe article starts here.",
     "content_type": "text/x-markdown",
     "eyecatch_image_url": "https://cdn-ak.f.st-hatena.com/images/fotolife/example.png"
   }
 }
 ```
 
-- `upload_image` が返す `image_url` をそのまま利用できます。
-- 省略した場合は本文を変更しません。
-- 再指定時は、このMCPが以前追加したブロックを置換して重複を防ぎます。
-- `update_entry` で本文を省略した場合は既存本文へ適用します。
+- You can pass the `image_url` returned by `upload_image` directly.
+- Omitting the option leaves the body unchanged.
+- Supplying it again replaces a block previously inserted by this MCP.
+- When `content` is omitted during an update, the block is applied to the existing body.
 
-### 固定ページ
+### Pages
 
-| 名前 | 用途 | 必須 | 主なオプション |
+| Tool | Purpose | Required | Main options |
 | --- | --- | --- | --- |
-| `list_pages` | 固定ページ一覧（1ページ10件） | `blog_id` | `hatena_id`, `page`, `include_html` |
-| `get_page` | 固定ページを1件取得 | `blog_id`, `page_id` | `hatena_id`, `include_html` |
-| `create_page` | 固定ページを作成 | `blog_id`, `title`, `content`, `custom_url` | `content_type`, `draft`, `preview`, `updated` |
-| `update_page` | 固定ページを部分更新 | `blog_id`, `page_id` | `title`, `content`, `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
-| `delete_page` | 固定ページを削除 | `blog_id`, `page_id` | `hatena_id` |
+| `list_pages` | List pages, 10 per page | `blog_id` | `hatena_id`, `page`, `include_html` |
+| `get_page` | Get one page | `blog_id`, `page_id` | `hatena_id`, `include_html` |
+| `create_page` | Create a page | `blog_id`, `title`, `content`, `custom_url` | `content_type`, `draft`, `preview`, `updated` |
+| `update_page` | Partially update a page | `blog_id`, `page_id` | `title`, `content`, `draft`, `preview`, `custom_url`, `touch_updated`, `expected_edited` |
+| `delete_page` | Delete a page | `blog_id`, `page_id` | `hatena_id` |
 
-### カテゴリと画像
+### Categories and images
 
-| 名前 | 用途 | 必須 | 主なオプション |
+| Tool | Purpose | Required | Main options |
 | --- | --- | --- | --- |
-| `list_categories` | カテゴリ一覧と固定状態を取得 | `blog_id` | `hatena_id` |
-| `get_image` | フォトライフ画像メタデータを取得 | `image_id` | — |
-| `upload_image` | 画像を投稿し、記事用記法とURLを返す | `title`, `content_type`, `data_base64` | `folder`（既定: `Hatena Blog`） |
+| `list_categories` | List categories and fixed state | `blog_id` | `hatena_id` |
+| `get_image` | Get Fotolife image metadata | `image_id` | — |
+| `upload_image` | Upload an image and return its URL and blog syntax | `title`, `content_type`, `data_base64` | `folder` (default: `Hatena Blog`) |
 
-フォトライフ公式feedはブログ編集画面から投稿した非公開「Hatena Blog」フォルダを列挙しないため、画像一覧ツールは提供していません。
+The official Fotolife feed does not list the private “Hatena Blog” folder populated through the blog editor, so this server does not provide an image-list tool.
 
-## 上限と再試行
+## Limits and retries
 
-- はてなから受け取るXML: 8 MiB
-- エラーボディ: 16 KiB
-- 記事本文: 4 MiB
-- デコード後の画像: 10 MiB
-- カテゴリ: 100件、各256文字
-- 上流API timeout: 1回の試行につき30秒
-- 自動再試行: GET / PUT / DELETEなどの冪等メソッドのみ。POSTは再試行しません。
-- MCP要求のキャンセルは上流通信と再試行の待機へ伝播します。送信済みの書き込みは巻き戻せません。
-- 応答本文のタイムアウト・通信切断は接続エラーとして返し、本文のサイズ超過やXML解析エラーと区別します。
+- Hatena XML response: 8 MiB
+- Error body: 16 KiB
+- Entry body: 4 MiB
+- Decoded image: 10 MiB
+- Categories: 100 entries, 256 characters each
+- Upstream timeout: 30 seconds per attempt
+- Automatic retry: idempotent methods such as GET, PUT, and DELETE only; never POST
+- MCP request cancellation propagates to upstream requests and retry waits. Writes already sent cannot be rolled back.
+- Response-body timeouts and connection failures are reported as network errors, separately from oversized bodies and XML parsing errors.
 
-## 開発者向け情報
+## Development and verification
 
-開発時の作業規約と必須検証は [AGENTS.md](https://github.com/1llum1n4t1s/KG.hatena-blog-mcp/blob/main/AGENTS.md)、システムの構造と不変条件は [DESIGN.md](./DESIGN.md) を参照してください。
+```sh
+pnpm install --frozen-lockfile
+pnpm verify
+npm pack --dry-run --json
+```
 
-`pnpm verify` は既存テストとstdio接続に加え、画像上限・キャンセル・部分更新・本文障害のE2Eも実行します。ビルド後に `node scripts/smoke-behavior.mjs --report <保存先.json>` を実行すると検証結果を保存できます。
+`pnpm verify` runs Biome, TypeScript, coverage-enabled Vitest, a stdio connection against the built CLI, and E2E checks for image limits, cancellation, partial updates, and response-body failures. After building, run `node scripts/smoke-behavior.mjs --report <output.json>` to save the results. See [DESIGN.md](./DESIGN.md) for architecture and invariants.
 
-## セキュリティ
+## Security
 
-- MCPクライアント設定やラッパーを第三者と共有するときは、環境変数の値を除去してください。
-- ログにはAuthorization、APIキー、上流レスポンス本文、任意の例外メッセージを出しません。
-- APIキーが漏れた場合は、はてなブログのAtomPub設定から再発行してください。
-- 公開HTTPサーバーではなくローカルstdioプロセスですが、同じユーザー権限で動く他プロセスからの環境・設定ファイルの読み取りにはOS側の保護が必要です。
+- Remove environment values before sharing an MCP client configuration or wrapper.
+- Logs exclude Authorization, API keys, upstream response bodies, and arbitrary exception messages.
+- If a key leaks, rotate it from Hatena Blog's AtomPub settings.
+- This is a local stdio process, but operating-system protection is still required against other processes running as the same user and against disclosure of client configuration files.
 
 ## License
 

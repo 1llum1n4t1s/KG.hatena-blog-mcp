@@ -19,7 +19,7 @@
 - 入力schemaとHTTP/XML処理には `src/utils/limits.ts` と `src/utils/body.ts` の上限を適用し、上限のない全量読み込みを追加しない。
 - 認証情報、Authorization、上流レスポンス本文、任意の例外メッセージをログへ出さない。構造化エラーは `src/mcp/response.ts` の形式を使う。
 - `package.json` の `bin`、`exports`、`types`、`files` を変更したら、生成tarballにCLI、JavaScript、型宣言、利用者向け文書が含まれ、秘密、テスト、エージェント向け文書が含まれないことを確認する。
-- 利用者向け機能・設定・制約が変わったら `README.md` と `README.en.md` を同期し、`CHANGELOG.md` の `Unreleased` へ追記する。
+- 利用者向け機能・設定・制約が変わったら、英語の `README.md`（正本）と `README.ja.md`・`README.zh-CN.md`・`README.zh-TW.md`・`README.ko.md`・`README.es.md`・`README.fr.md`・`README.de.md`・`README.pt-BR.md` を同時に直し（先頭の9言語切替行を含む）、`CHANGELOG.md` の `Unreleased` へ追記する。
 - 責務、境界、データフロー、設計判断が変わったら `DESIGN.md` を同じ変更で更新する。
 
 ## テスト配置
@@ -41,3 +41,10 @@ git diff --check
 ```
 
 公開構成を変更した場合は、生成したtarballを新しい一時ディレクトリへinstallし、そこに入ったCLIへstdio接続して13ツールを列挙できることも確認する。実際のpublishとversion更新はリリース依頼時だけ行う。
+
+## ローカライズ
+
+- 人が読む文言（現在はCLIの起動時メッセージ）は `src/locales/<タグ>.json` の9言語（ja・en・zh-CN・zh-TW・ko・es・fr・de・pt-BR）で持ち、`src/i18n.ts` の `translate` 経由で出す。文言を足したら9言語すべての辞書と `test/i18n.test.ts`（キー集合・プレースホルダー・参照キーの整合）を更新する。
+- 言語は `HATENA_BLOG_MCP_LANGUAGE` → `LC_ALL` → `LC_MESSAGES` → `LANG` → `Intl` の既定ロケール → 英語の順で決める。
+- AIが読む文言（MCPツールの名前・説明・入力スキーマの説明、AIへ返す応答・エラー）は英語に統一し、訳し分けない。
+- README を変えたら全言語版を同時に直す。英語の `README.md` が正本で、コマンド・パス・設定キー・製品名・URL・パッケージ名は訳さない。
