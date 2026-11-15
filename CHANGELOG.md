@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-11-15
+
+### Changed
+
+- MCPツールの説明・入力スキーマの説明・AIへ返すエラー文を英語に統一しました（ツール名・引数・応答の形は変更なし）。
+- CLIの起動時メッセージを9言語（ja・en・zh-CN・zh-TW・ko・es・fr・de・pt-BR）に対応し、`HATENA_BLOG_MCP_LANGUAGE` またはOSのロケールで切り替わるようにしました。
+- README を英語の `README.md` 正本と8言語版（`README.ja.md` など）へ再編しました。`README.en.md` は `README.md` に統合しました。
+
 ## [1.0.7] - 2026-11-15
 
 ### Changed
