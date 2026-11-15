@@ -49,6 +49,8 @@ If a Windows client cannot find `npx`, use `npx.cmd`. Prefer the client's or ope
 
 The `@latest` spec resolves npm's `latest` dist-tag when the MCP process starts. The MCP does not rewrite itself or contact a custom update service while running. For reproducible installs, replace `latest` with the exact release version you intend to use.
 
+If you already registered the server with a pinned version (for example `@kagayoi/hatena-blog-mcp@1.0.6`), change the package argument in that registration to `@kagayoi/hatena-blog-mcp@latest`. Updating this README does not change existing registrations, but after that edit each launch uses the latest release automatically.
+
 ### Run from source
 
 ```sh
