@@ -58,23 +58,23 @@ function formatErrorMessage(err: unknown): string {
   if (err instanceof AtomPubError) {
     switch (err.code) {
       case "unauthorized":
-        return "認証に失敗しました。APIキーを確認してください。";
+        return "Authentication failed. Check your API key.";
       case "forbidden":
-        return "操作が許可されていません (403)。";
+        return "The operation is not permitted (403).";
       case "not_found":
-        return "リソースが見つかりませんでした (404)。";
+        return "The resource was not found (404).";
       case "rate_limited":
-        return "レート制限に達しました。しばらく待ってから再試行してください。";
+        return "Rate limit reached. Wait a while and try again.";
       case "server_error":
-        return `はてなAPIがサーバーエラーを返しました (${err.status})。`;
+        return `The Hatena API returned a server error (${err.status}).`;
       case "bad_request":
-        return `リクエストが不正です (${err.status})。`;
+        return `The request is invalid (${err.status}).`;
       case "parse_error":
-        return "AtomPubレスポンスの解析に失敗しました。";
+        return "Failed to parse the AtomPub response.";
       case "network_error":
-        return "はてなAPIに接続できませんでした。";
+        return "Could not connect to the Hatena API.";
       default:
-        return `はてなAPIでエラーが発生しました (${err.status})。`;
+        return `The Hatena API returned an error (${err.status}).`;
     }
   }
   if (err instanceof Error) return err.message;

@@ -113,17 +113,17 @@ function photoFromNode(node: XmlNode): FotolifeImage {
 
 export function normalizeImageBase64(data: string): string {
   if (data.length > MAX_IMAGE_BASE64_CHARS) {
-    throw new Error(`画像は${MAX_IMAGE_BYTES / 1024 / 1024} MiB以下にしてください。`);
+    throw new Error(`The image must be ${MAX_IMAGE_BYTES / 1024 / 1024} MiB or smaller.`);
   }
   const compact = data.replace(/\s+/g, "");
-  if (!compact) throw new Error("画像のbase64データが空です。");
+  if (!compact) throw new Error("The image base64 data is empty.");
   if (compact.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
-    throw new Error("画像のbase64データが不正です。");
+    throw new Error("The image base64 data is invalid.");
   }
   const padding = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
   const decodedBytes = (compact.length / 4) * 3 - padding;
   if (decodedBytes > MAX_IMAGE_BYTES) {
-    throw new Error(`画像は${MAX_IMAGE_BYTES / 1024 / 1024} MiB以下にしてください。`);
+    throw new Error(`The image must be ${MAX_IMAGE_BYTES / 1024 / 1024} MiB or smaller.`);
   }
   return compact;
 }

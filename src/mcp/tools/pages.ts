@@ -183,7 +183,9 @@ export async function updatePageHandler(
     const existing = await client.getPage(args.page_id);
     if (args.expected_edited !== undefined && existing.edited !== args.expected_edited) {
       return toolError(
-        new Error("更新競合を検出しました。get_page で最新状態を取得してから再試行してください。"),
+        new Error(
+          "An update conflict was detected. Fetch the latest state with get_page and try again.",
+        ),
         { operation: "update_page", requestId: ctx.requestId },
       );
     }
@@ -229,8 +231,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "list_pages",
     {
-      description:
-        "固定ページの一覧を取得します。続きは返り値の next_page を page に渡して再取得してください。",
+      description: "List fixed pages. To get the next page, pass the returned next_page as page.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -249,7 +250,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "get_page",
     {
-      description: "固定ページを1件取得します。",
+      description: "Get a single fixed page.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -264,7 +265,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "create_page",
     {
-      description: "新規の固定ページを作成します。custom_url はページのスラッグで必須です。",
+      description: "Create a new fixed page. custom_url is the page slug and is required.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -277,12 +278,12 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
           .string()
           .max(MAX_IDENTIFIER_CHARS)
           .optional()
-          .describe("ISO-8601 の公開日時。省略時ははてな側の現在時刻を使います。"),
+          .describe("Publication date in ISO 8601. When omitted, Hatena's current time is used."),
         custom_url: z
           .string()
           .min(1)
           .max(MAX_IDENTIFIER_CHARS)
-          .describe("ページのスラッグ (例: about)"),
+          .describe("Page slug (for example: about)"),
       },
     },
     (args, extra) => createPageHandler(args, withRequestSignal(ctx, extra?.signal)),
@@ -292,7 +293,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
     "update_page",
     {
       description:
-        "固定ページを部分更新します。指定したフィールドのみ書き換え、未指定のフィールドは既存値を維持します (投稿日時・URL・本文の記法を含む)。",
+        "Partially update a fixed page. Only the specified fields are changed; unspecified fields keep their existing values (including the publication date, URL, and content syntax).",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -305,12 +306,14 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
         touch_updated: z
           .boolean()
           .optional()
-          .describe("true を指定した場合のみ現在時刻で updated を送信します (デフォルト false)"),
+          .describe("Only when true, sends the current time as updated (default false)"),
         expected_edited: z
           .string()
           .max(MAX_IDENTIFIER_CHARS)
           .optional()
-          .describe("get_page が返した edited。現在値と異なる場合は更新せず競合エラーにします"),
+          .describe(
+            "The edited value returned by get_page. If it differs from the current value, the update is rejected as a conflict",
+          ),
       },
       annotations: { destructiveHint: true },
     },
@@ -320,7 +323,7 @@ export function registerPageTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "delete_page",
     {
-      description: "固定ページを削除します。",
+      description: "Delete a fixed page.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,

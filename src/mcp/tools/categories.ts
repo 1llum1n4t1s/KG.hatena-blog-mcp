@@ -27,7 +27,7 @@ export function registerCategoryTools(server: McpServer, ctx: ToolContext): void
     "list_categories",
     {
       description:
-        "ブログのカテゴリ一覧を取得します。fixed=true の場合は新規カテゴリの追加が禁止されています。",
+        "List the blog's categories. When fixed=true, adding new categories is not allowed.",
       inputSchema: {
         blog_id: z
           .string()

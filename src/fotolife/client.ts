@@ -108,6 +108,6 @@ export class FotolifeClient {
 
 function normalizeImageId(imageId: string): string {
   const match = /([0-9]{14,})/.exec(imageId);
-  if (!match?.[1]) throw new Error("画像IDは14桁以上の数字で指定してください。");
+  if (!match?.[1]) throw new Error("The image ID must be a number with at least 14 digits.");
   return match[1];
 }

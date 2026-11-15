@@ -89,13 +89,13 @@ export function registerImageTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "get_image",
     {
-      description: "はてなフォトライフの画像メタデータを1件取得します。",
+      description: "Get the metadata of a single Hatena Fotolife image.",
       inputSchema: {
         image_id: z
           .string()
           .min(1)
           .max(MAX_IDENTIFIER_CHARS)
-          .describe("fotolife画像ID。末尾のp/j/g付き記法も指定できます"),
+          .describe("Fotolife image ID. The form with a trailing p/j/g is also accepted"),
       },
       annotations: { readOnlyHint: true },
     },
@@ -106,7 +106,7 @@ export function registerImageTools(server: McpServer, ctx: ToolContext): void {
     "upload_image",
     {
       description:
-        "画像をはてなフォトライフへ投稿し、記事へ貼り付けられるblog_syntaxと画像URLを返します。",
+        "Upload an image to Hatena Fotolife and return the blog_syntax to paste into an article and the image URL.",
       inputSchema: {
         title: z.string().min(1).max(MAX_TITLE_CHARS),
         content_type: imageContentType,
@@ -114,8 +114,13 @@ export function registerImageTools(server: McpServer, ctx: ToolContext): void {
           .string()
           .min(1)
           .max(MAX_IMAGE_BASE64_CHARS)
-          .describe("画像ファイル本体のbase64文字列 (最大10 MiB)"),
-        folder: z.string().min(1).max(MAX_TITLE_CHARS).optional().describe("省略時は Hatena Blog"),
+          .describe("Base64 string of the image file itself (up to 10 MiB)"),
+        folder: z
+          .string()
+          .min(1)
+          .max(MAX_TITLE_CHARS)
+          .optional()
+          .describe("Defaults to Hatena Blog when omitted"),
       },
     },
     (args, extra) => uploadImageHandler(args, withRequestSignal(ctx, extra?.signal)),

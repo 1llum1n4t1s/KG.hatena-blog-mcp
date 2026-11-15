@@ -70,7 +70,7 @@ function parseEyecatchImageUrl(value: string): URL {
     parsed = new URL(value);
   } catch {
     throw new Error(
-      "eyecatch_image_url には認証情報を含まない http または https の画像URLを指定してください。",
+      "eyecatch_image_url must be an http or https image URL that contains no credentials.",
     );
   }
   if (
@@ -79,7 +79,7 @@ function parseEyecatchImageUrl(value: string): URL {
     parsed.password !== ""
   ) {
     throw new Error(
-      "eyecatch_image_url には認証情報を含まない http または https の画像URLを指定してください。",
+      "eyecatch_image_url must be an http or https image URL that contains no credentials.",
     );
   }
   return parsed;
@@ -116,7 +116,7 @@ export function applyAutoEyecatch(content: string, imageUrl: string): string {
     contentWithoutPriorBlock.length === 0 ? block : `${block}\n\n${contentWithoutPriorBlock}`;
   if (result.length > MAX_CONTENT_CHARS) {
     throw new Error(
-      `自動アイキャッチ画像を追加すると本文が最大 ${MAX_CONTENT_CHARS} 文字を超えます。本文を短くしてください。`,
+      `Adding the automatic eyecatch image would push the content over the ${MAX_CONTENT_CHARS}-character limit. Shorten the content.`,
     );
   }
   return result;
@@ -181,10 +181,10 @@ const eyecatchImageUrlSchema = z
   .url()
   .max(MAX_IDENTIFIER_CHARS)
   .refine(isSupportedEyecatchImageUrl, {
-    message: "認証情報を含まない http または https の画像URLを指定してください。",
+    message: "Specify an http or https image URL that contains no credentials.",
   })
   .describe(
-    "本文先頭に画像を挿入し、はてなの自動アイキャッチ候補にします。公式アイキャッチ項目を直接設定する機能ではありません。",
+    "Inserts an image at the start of the content so Hatena can pick it as the automatic eyecatch candidate. This does not set the official eyecatch field directly.",
   );
 
 // ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ export async function createEntryHandler(
     if (args.scheduled === true && (args.updated === undefined || args.draft !== true)) {
       return toolError(
         new Error(
-          "scheduled=true の場合は draft=true と updated (ISO8601 の公開日時) を指定してください。",
+          "When scheduled=true, also specify draft=true and updated (the ISO 8601 publication date).",
         ),
         { operation: "create_entry", requestId: ctx.requestId },
       );
@@ -312,7 +312,9 @@ export async function updateEntryHandler(
     const existing = await client.getEntry(args.entry_id);
     if (args.expected_edited !== undefined && existing.edited !== args.expected_edited) {
       return toolError(
-        new Error("更新競合を検出しました。get_entry で最新状態を取得してから再試行してください。"),
+        new Error(
+          "An update conflict was detected. Fetch the latest state with get_entry and try again.",
+        ),
         { operation: "update_entry", requestId: ctx.requestId },
       );
     }
@@ -363,7 +365,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
     "list_entries",
     {
       description:
-        "ブログエントリの一覧を取得します。1ページ7件。続きは返り値の next_page を page に渡して再取得してください。",
+        "List blog entries, 7 per page. To get the next page, pass the returned next_page as page.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -385,7 +387,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "get_entry",
     {
-      description: "エントリを1件取得します。",
+      description: "Get a single entry.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -400,7 +402,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "create_entry",
     {
-      description: "新規エントリを投稿します。",
+      description: "Create a new entry.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -427,7 +429,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
     "update_entry",
     {
       description:
-        "エントリを部分更新します。指定したフィールドのみ書き換え、未指定のフィールドは既存値を維持します (投稿日時・URL・本文の記法を含む)。",
+        "Partially update an entry. Only the specified fields are changed; unspecified fields keep their existing values (including the publication date, URL, and content syntax).",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,
@@ -439,7 +441,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
           .array(z.string().max(MAX_CATEGORY_CHARS))
           .max(MAX_CATEGORY_COUNT)
           .optional()
-          .describe("空配列 [] を渡すとカテゴリを空にします"),
+          .describe("Pass an empty array [] to clear the categories"),
         draft: z.boolean().optional(),
         preview: z.boolean().optional(),
         custom_url: z.string().min(1).max(MAX_IDENTIFIER_CHARS).optional(),
@@ -447,13 +449,15 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
           .boolean()
           .optional()
           .describe(
-            "true を指定した場合のみ現在時刻で updated を送信します (デフォルト false = 投稿日時を保持)",
+            "Only when true, sends the current time as updated (default false = keep the publication date)",
           ),
         expected_edited: z
           .string()
           .max(MAX_IDENTIFIER_CHARS)
           .optional()
-          .describe("get_entry が返した edited。現在値と異なる場合は更新せず競合エラーにします"),
+          .describe(
+            "The edited value returned by get_entry. If it differs from the current value, the update is rejected as a conflict",
+          ),
       },
       annotations: { destructiveHint: true },
     },
@@ -463,7 +467,7 @@ export function registerEntryTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "delete_entry",
     {
-      description: "エントリを削除します。",
+      description: "Delete an entry.",
       inputSchema: {
         blog_id: blogId,
         hatena_id: hatenaIdOverride,

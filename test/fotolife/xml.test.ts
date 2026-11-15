@@ -33,7 +33,7 @@ describe("Fotolife XML", () => {
   });
 
   it("不正なbase64を拒否する", () => {
-    expect(() => normalizeImageBase64("***")).toThrow("不正");
+    expect(() => normalizeImageBase64("***")).toThrow("invalid");
   });
 
   it("名前空間prefixが変わっても画像フィールドを解析する", () => {

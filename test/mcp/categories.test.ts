@@ -45,7 +45,7 @@ describe("listCategoriesHandler", () => {
     const { ctx } = makeCtx([new Response("nope", { status: 401 })]);
     const res = await listCategoriesHandler({ blog_id: "example_user.hatenablog.com" }, ctx);
     expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain("認証");
+    expect(res.content[0]?.text).toContain("Authentication");
   });
 
   it("hatena_id override が URL パスに反映される", async () => {

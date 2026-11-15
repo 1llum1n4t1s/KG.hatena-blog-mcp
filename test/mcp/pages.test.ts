@@ -182,7 +182,7 @@ describe("updatePageHandler", () => {
       ctx,
     );
     expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain("更新競合");
+    expect(res.content[0]?.text).toContain("update conflict");
     expect(calls).toHaveLength(1);
   });
 });

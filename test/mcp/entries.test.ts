@@ -91,18 +91,16 @@ describe("applyAutoEyecatch", () => {
   });
 
   it("HTTP(S)以外と認証情報入りURLを拒否する", () => {
-    expect(() => applyAutoEyecatch("本文", "data:image/png;base64,AAAA")).toThrow(
-      "http または https",
-    );
+    expect(() => applyAutoEyecatch("本文", "data:image/png;base64,AAAA")).toThrow("http or https");
     expect(() => applyAutoEyecatch("本文", "https://user:secret@example.com/cover.png")).toThrow(
-      "認証情報を含まない",
+      "contains no credentials",
     );
   });
 
   it("画像ブロック追加後の本文上限を検証する", () => {
     expect(() =>
       applyAutoEyecatch("x".repeat(MAX_CONTENT_CHARS), "https://example.com/cover.png"),
-    ).toThrow("本文が最大");
+    ).toThrow("character limit");
   });
 });
 
@@ -214,7 +212,7 @@ describe("listEntriesHandler", () => {
     const { ctx } = makeCtx([new Response("nope", { status: 401 })]);
     const res = await listEntriesHandler({ blog_id: "example_user.hatenablog.com" }, ctx);
     expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain("認証");
+    expect(res.content[0]?.text).toContain("Authentication");
   });
 });
 
@@ -236,7 +234,7 @@ describe("getEntryHandler", () => {
       ctx,
     );
     expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain("見つかりません");
+    expect(res.content[0]?.text).toContain("not found");
   });
 });
 
@@ -394,7 +392,7 @@ describe("updateEntryHandler", () => {
       ctx,
     );
     expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain("更新競合");
+    expect(res.content[0]?.text).toContain("update conflict");
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe("GET");
   });

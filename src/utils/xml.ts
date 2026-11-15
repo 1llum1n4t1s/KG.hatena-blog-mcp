@@ -13,7 +13,7 @@ export function assertValidXmlChars(value: string): string {
       continue;
     }
     throw new Error(
-      `XML 1.0 で使用できない文字 U+${codePoint.toString(16).toUpperCase()} が含まれています。`,
+      `Contains the character U+${codePoint.toString(16).toUpperCase()}, which is not allowed in XML 1.0.`,
     );
   }
   return value;
