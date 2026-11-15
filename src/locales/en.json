@@ -1,0 +1,4 @@
+{
+  "cli.missingCredentials": "hatena-blog-mcp: Set HATENA_ID and HATENA_API_KEY as environment variables.",
+  "cli.startFailed": "hatena-blog-mcp: Failed to start ({errorName})."
+}

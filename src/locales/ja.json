@@ -1,0 +1,4 @@
+{
+  "cli.missingCredentials": "hatena-blog-mcp: HATENA_ID と HATENA_API_KEY を環境変数に設定してください。",
+  "cli.startFailed": "hatena-blog-mcp: 起動できません ({errorName})。"
+}
