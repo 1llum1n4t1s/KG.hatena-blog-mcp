@@ -13,7 +13,7 @@ import { registerPageTools } from "./tools/pages.js";
  */
 export const SERVER_INFO = {
   name: "hatena-blog-mcp",
-  version: "1.0.8",
+  version: "1.0.9",
 } as const;
 
 /**
