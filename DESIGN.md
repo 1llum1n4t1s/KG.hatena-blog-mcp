@@ -102,7 +102,7 @@ AtomPubのPUTは部分patchではないため、`update_entry` と `update_page`
 
 ## buildと検証境界
 
-npm公開用publish.ymlは、npm Trusted Publishingとprovenanceのcloud-hosted build要件に合わせ、install・検証・build・pack・公開をGitHub-hosted ubuntu-latest内で実行します。通常のdependency-validationはM3 Linux ARM64を使います。保存公開tokenは使わず、OIDCと--provenanceを維持します。一回packした同じtarballのSHA-512と既存版のintegrityを確認し、作り直さず公開します。workflow filenameと従来のrelease/manual条件を維持します。
+npm公開用publish.ymlは、npm Trusted Publishingとprovenanceのcloud-hosted build要件に合わせ、install・検証・build・pack・公開をGitHub-hosted ubuntu-latest内で実行します。通常のdependency-validationはM3 Linux ARM64を使います。保存公開tokenは使わず、OIDCと--provenanceを維持します。一回packした同じtarballのSHA-512と既存版のintegrityを確認し、作り直さず公開します。workflow filenameと手動再実行の条件を維持し、公開は main のコミットに付けた軽量タグ `vX.Y.Z` の push で起動します（タグ・厳密な形・軽量タグが実行 commit を指すこと・既定ブランチの祖先であること・`v<package.json の版>` との一致を検査します）。
 
 `tsconfig.json` は開発時の型検査、`tsconfig.build.json` は `dist/` のJavaScriptと型宣言生成を定義する。`package.json` はCLI、library export、npm配布version、tarball内容、public accessを定義する。MCP initializeで公開するversionは `src/mcp/server.ts` の `SERVER_INFO.version` が保持し、同一リリースを表すためnpm配布versionと常に一致させる。
 
